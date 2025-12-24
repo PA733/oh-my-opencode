@@ -1,1 +1,1 @@
-export type CompactionStrategy = "raw"
+export type CompactionStrategy = "raw" | "readability"

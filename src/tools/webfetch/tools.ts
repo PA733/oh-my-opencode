@@ -1,5 +1,6 @@
 import { tool } from "@opencode-ai/plugin/tool"
 import { DEFAULT_STRATEGY, MAX_OUTPUT_SIZE, MAX_RAW_SIZE, TIMEOUT_MS } from "./constants"
+import { applyReadability, applyRaw } from "./strategies"
 import type { CompactionStrategy } from "./types"
 
 function formatBytes(bytes: number): string {
@@ -31,19 +32,27 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<string>
   }
 }
 
-function applyStrategy(content: string, _strategy: CompactionStrategy): string {
-  return content
+function applyStrategy(content: string, url: string, strategy: CompactionStrategy): string {
+  switch (strategy) {
+    case "readability":
+      return applyReadability(content, url)
+    case "raw":
+      return applyRaw(content)
+    default:
+      return applyReadability(content, url)
+  }
 }
 
 export const webfetch = tool({
   description:
     "Fetch and process web content with compaction strategies.\n\n" +
     "STRATEGY SELECTION GUIDE:\n" +
+    "- 'readability': Extracts article content as markdown. Best for blogs, news, documentation pages.\n" +
     "- 'raw': No processing. Only for small responses (<100KB) when you need exact content.",
   args: {
     url: tool.schema.string().describe("The URL to fetch"),
     strategy: tool.schema
-      .enum(["raw"])
+      .enum(["readability", "raw"])
       .optional()
       .describe("Compaction strategy (default: raw)."),
   },
@@ -61,11 +70,11 @@ export const webfetch = tool({
           "This will cause token overflow.",
           "",
           "Suggested alternatives:",
-          "- Use a different compaction strategy when available",
+          "- 'readability' for HTML documentation pages",
         ].join("\n")
       }
 
-      let result = applyStrategy(rawContent, strategy)
+      let result = applyStrategy(rawContent, url, strategy)
 
       let truncated = false
       if (result.length > MAX_OUTPUT_SIZE) {
