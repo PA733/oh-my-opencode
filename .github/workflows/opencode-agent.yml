@@ -1,0 +1,173 @@
+name: OpenCode Agent (@sisyphus-dev-ai)
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Custom prompt'
+        required: false
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    # @sisyphus-dev-ai mention only (exclude self)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.comment.body || github.event.review.body, '@sisyphus-dev-ai') && 
+       (github.event.comment.user.login || github.event.review.user.login) != 'sisyphus-dev-ai')
+    
+    # Minimal default GITHUB_TOKEN permissions
+    permissions:
+      contents: read
+    
+    steps:
+      # Checkout with sisyphus-dev-ai's PAT
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      # Git config - commits as sisyphus-dev-ai
+      - name: Configure Git as sisyphus-dev-ai
+        run: |
+          git config user.name "sisyphus-dev-ai"
+          git config user.email "sisyphus-dev-ai@users.noreply.github.com"
+
+      # gh CLI auth as sisyphus-dev-ai
+      - name: Authenticate gh CLI as sisyphus-dev-ai
+        run: |
+          echo "${{ secrets.GH_PAT }}" | gh auth login --with-token
+          gh auth status
+
+      # Install OpenCode
+      - name: Install OpenCode
+        run: |
+          curl -fsSL https://opencode.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Setup OpenCode auth
+      - name: Setup OpenCode Auth
+        run: |
+          mkdir -p ~/.local/share/opencode
+          echo '${{ secrets.OPENCODE_AUTH_JSON }}' > ~/.local/share/opencode/auth.json
+          chmod 600 ~/.local/share/opencode/auth.json
+
+      # Collect context
+      - name: Collect Context
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          EVENT="${{ github.event_name }}"
+          
+          if [[ "$EVENT" == "issue_comment" ]]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+            COMMENT="${{ github.event.comment.body }}"
+            AUTHOR="${{ github.event.comment.user.login }}"
+            COMMENT_ID="${{ github.event.comment.id }}"
+            
+            # Check if PR or Issue
+            if gh api "repos/${{ github.repository }}/issues/${ISSUE_NUM}" | jq -e '.pull_request' > /dev/null; then
+              echo "type=pr" >> $GITHUB_OUTPUT
+              echo "number=${ISSUE_NUM}" >> $GITHUB_OUTPUT
+            else
+              echo "type=issue" >> $GITHUB_OUTPUT
+              echo "number=${ISSUE_NUM}" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "$EVENT" == "pull_request_review_comment" ]]; then
+            echo "type=pr" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            COMMENT="${{ github.event.comment.body }}"
+            AUTHOR="${{ github.event.comment.user.login }}"
+            COMMENT_ID="${{ github.event.comment.id }}"
+          elif [[ "$EVENT" == "pull_request_review" ]]; then
+            echo "type=pr" >> $GITHUB_OUTPUT
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            COMMENT="${{ github.event.review.body }}"
+            AUTHOR="${{ github.event.review.user.login }}"
+            COMMENT_ID=""
+          fi
+          
+          echo "comment<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+
+      # Add :eyes: reaction (as sisyphus-dev-ai)
+      - name: Add eyes reaction
+        if: steps.context.outputs.comment_id != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh api "/repos/${{ github.repository }}/issues/comments/${{ steps.context.outputs.comment_id }}/reactions" \
+            -X POST -f content="eyes" || true
+
+      # Run OpenCode
+      - name: Run OpenCode
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          PROMPT="You are sisyphus-dev-ai, an AI coding agent.
+
+          ## Context
+          Type: ${{ steps.context.outputs.type }}
+          Number: #${{ steps.context.outputs.number }}
+          
+          ## User Request
+          @${{ steps.context.outputs.author }} says:
+          ${{ steps.context.outputs.comment }}
+          
+          ## Instructions
+          1. Read the full context using gh cli
+          2. Process the request
+          3. If code changes needed, make them and push
+          4. Communicate via gh cli comments
+          
+          ## Git Config
+          Already configured:
+          - user.name: sisyphus-dev-ai
+          - user.email: sisyphus-dev-ai@users.noreply.github.com"
+          
+          opencode run "$PROMPT"
+
+      # Push changes (as sisyphus-dev-ai)
+      - name: Push changes
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "chore: changes by sisyphus-dev-ai" || true
+          fi
+          
+          BRANCH=$(git branch --show-current)
+          if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
+            git push origin "$BRANCH" || true
+          fi
+
+      # Remove :eyes:, add :+1:
+      - name: Update reaction
+        if: always() && steps.context.outputs.comment_id != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Remove eyes
+          REACTION_ID=$(gh api "/repos/${{ github.repository }}/issues/comments/${{ steps.context.outputs.comment_id }}/reactions" \
+            --jq '.[] | select(.content == "eyes" and .user.login == "sisyphus-dev-ai") | .id' | head -1)
+          if [[ -n "$REACTION_ID" ]]; then
+            gh api -X DELETE "/repos/${{ github.repository }}/reactions/${REACTION_ID}" || true
+          fi
+          
+          # Add thumbs up
+          gh api "/repos/${{ github.repository }}/issues/comments/${{ steps.context.outputs.comment_id }}/reactions" \
+            -X POST -f content="+1" || true
