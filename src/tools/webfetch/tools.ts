@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin/tool"
 import { DEFAULT_STRATEGY, MAX_OUTPUT_SIZE, MAX_RAW_SIZE, TIMEOUT_MS } from "./constants"
-import { applyReadability, applyRaw } from "./strategies"
+import { applyReadability, applyRaw, applyGrep, type GrepOptions } from "./strategies"
 import type { CompactionStrategy } from "./types"
 
 function formatBytes(bytes: number): string {
@@ -32,12 +32,22 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<string>
   }
 }
 
-function applyStrategy(content: string, url: string, strategy: CompactionStrategy): string {
+function applyStrategy(
+  content: string,
+  url: string,
+  strategy: CompactionStrategy,
+  grepOptions?: { pattern?: string } & GrepOptions
+): string {
   switch (strategy) {
     case "readability":
       return applyReadability(content, url)
     case "raw":
       return applyRaw(content)
+    case "grep":
+      if (!grepOptions?.pattern) {
+        return "Error: 'pattern' is required for grep strategy"
+      }
+      return applyGrep(content, grepOptions.pattern, grepOptions)
     default:
       return applyReadability(content, url)
   }
@@ -48,13 +58,19 @@ export const webfetch = tool({
     "Fetch and process web content with compaction strategies.\n\n" +
     "STRATEGY SELECTION GUIDE:\n" +
     "- 'readability': Extracts article content as markdown. Best for blogs, news, documentation pages.\n" +
+    "- 'grep': Filter lines matching a pattern with optional before/after context (like grep -B/-A).\n" +
     "- 'raw': No processing. Only for small responses (<100KB) when you need exact content.",
   args: {
     url: tool.schema.string().describe("The URL to fetch"),
     strategy: tool.schema
-      .enum(["readability", "raw"])
+      .enum(["readability", "grep", "raw"])
       .optional()
       .describe("Compaction strategy (default: raw)."),
+    pattern: tool.schema.string().optional().describe("Regex pattern for grep strategy"),
+    limit: tool.schema.number().optional().describe("Max lines to return for grep (default: 100)"),
+    offset: tool.schema.number().optional().describe("Skip first N result lines for grep pagination"),
+    before: tool.schema.number().optional().describe("Lines of context before each match (like grep -B)"),
+    after: tool.schema.number().optional().describe("Lines of context after each match (like grep -A)"),
   },
   execute: async (args) => {
     const strategy = args.strategy ?? DEFAULT_STRATEGY
@@ -71,10 +87,17 @@ export const webfetch = tool({
           "",
           "Suggested alternatives:",
           "- 'readability' for HTML documentation pages",
+          "- 'grep' to filter lines matching a pattern",
         ].join("\n")
       }
 
-      let result = applyStrategy(rawContent, url, strategy)
+      let result = applyStrategy(rawContent, url, strategy, {
+        pattern: args.pattern,
+        limit: args.limit,
+        offset: args.offset,
+        before: args.before,
+        after: args.after,
+      })
 
       let truncated = false
       if (result.length > MAX_OUTPUT_SIZE) {
