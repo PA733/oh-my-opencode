@@ -116,7 +116,7 @@ function migrateConfigFile(configPath: string, rawConfig: Record<string, unknown
   return needsWrite;
 }
 
-function loadConfigFromPath(configPath: string): OhMyOpenCodeConfig | null {
+function loadConfigFromPath(configPath: string, ctx: any): OhMyOpenCodeConfig | null {
   try {
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, "utf-8");
@@ -131,12 +131,18 @@ function loadConfigFromPath(configPath: string): OhMyOpenCodeConfig | null {
         log(`Config validation error in ${configPath}:`, result.error.issues);
         addConfigLoadError({ path: configPath, error: `Validation error: ${errorMsg}` });
         
-        console.error(`\n❌ OhMyOpenCode: Failed to load config from ${configPath}`);
-        console.error(`   Validation errors:`);
-        for (const issue of result.error.issues) {
-          console.error(`   - ${issue.path.join(".")}: ${issue.message}`);
-        }
-        console.error(`   Config will be ignored. Please fix the errors above.\n`);
+        const errorList = result.error.issues
+          .map(issue => `• ${issue.path.join(".")}: ${issue.message}`)
+          .join("\n");
+        
+        ctx.client.tui.showToast({
+          body: {
+            title: "❌ OhMyOpenCode: Config Validation Failed",
+            message: `Failed to load ${configPath}\n\nValidation errors:\n${errorList}\n\nConfig will be ignored. Please fix the errors above.`,
+            variant: "error" as const,
+            duration: 10000,
+          },
+        }).catch(() => {});
         
         return null;
       }
@@ -149,12 +155,18 @@ function loadConfigFromPath(configPath: string): OhMyOpenCodeConfig | null {
     log(`Error loading config from ${configPath}:`, err);
     addConfigLoadError({ path: configPath, error: errorMsg });
     
-    console.error(`\n❌ OhMyOpenCode: Failed to load config from ${configPath}`);
-    console.error(`   Error: ${errorMsg}`);
-    if (err instanceof SyntaxError) {
-      console.error(`   Hint: Check for syntax errors in your JSON file (missing commas, quotes, brackets, etc.)`);
-    }
-    console.error(`   Config will be ignored. Please fix the error above.\n`);
+    const hint = err instanceof SyntaxError
+      ? "\n\nHint: Check for syntax errors in your JSON file (missing commas, quotes, brackets, etc.)"
+      : "";
+    
+    ctx.client.tui.showToast({
+      body: {
+        title: "❌ OhMyOpenCode: Config Load Failed",
+        message: `Failed to load ${configPath}\n\nError: ${errorMsg}${hint}\n\nConfig will be ignored. Please fix the error above.`,
+        variant: "error" as const,
+        duration: 10000,
+      },
+    }).catch(() => {});
   }
   return null;
 }
@@ -189,7 +201,7 @@ function mergeConfigs(
   };
 }
 
-function loadPluginConfig(directory: string): OhMyOpenCodeConfig {
+function loadPluginConfig(directory: string, ctx: any): OhMyOpenCodeConfig {
   // User-level config path (OS-specific)
   const userConfigPath = path.join(
     getUserConfigDir(),
@@ -205,10 +217,10 @@ function loadPluginConfig(directory: string): OhMyOpenCodeConfig {
   );
 
   // Load user config first (base)
-  let config: OhMyOpenCodeConfig = loadConfigFromPath(userConfigPath) ?? {};
+  let config: OhMyOpenCodeConfig = loadConfigFromPath(userConfigPath, ctx) ?? {};
 
   // Override with project config
-  const projectConfig = loadConfigFromPath(projectConfigPath);
+  const projectConfig = loadConfigFromPath(projectConfigPath, ctx);
   if (projectConfig) {
     config = mergeConfigs(config, projectConfig);
   }
@@ -224,7 +236,7 @@ function loadPluginConfig(directory: string): OhMyOpenCodeConfig {
 }
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
-  const pluginConfig = loadPluginConfig(ctx.directory);
+  const pluginConfig = loadPluginConfig(ctx.directory, ctx);
   const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
   const isHookEnabled = (hookName: HookName) => !disabledHooks.has(hookName);
 
