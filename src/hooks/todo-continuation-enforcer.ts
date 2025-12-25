@@ -18,6 +18,7 @@ export interface TodoContinuationEnforcerOptions {
 
 export interface TodoContinuationEnforcer {
   handler: (input: { event: { type: string; properties?: unknown } }) => Promise<void>
+  toolExecuteAfter?: (input: { tool: string; sessionID: string; callID: string; args?: Record<string, unknown> }) => Promise<void>
   markRecovering: (sessionID: string) => void
   markRecoveryComplete: (sessionID: string) => void
 }
@@ -70,6 +71,7 @@ function detectInterrupt(error: unknown): boolean {
 
 const COUNTDOWN_SECONDS = 2
 const TOAST_DURATION_MS = 900 // Slightly less than 1s so toasts don't overlap
+const INTERACTIVE_BASH_DEBOUNCE_MS = 5000 // Skip todo checks for 5s after interactive_bash
 
 interface CountdownState {
   secondsRemaining: number
@@ -87,6 +89,7 @@ export function createTodoContinuationEnforcer(
   const recoveringSessions = new Set<string>()
   const pendingCountdowns = new Map<string, CountdownState>()
   const preemptivelyInjectedSessions = new Set<string>()
+  const interactiveBashTimestamps = new Map<string, number>()
 
   const markRecovering = (sessionID: string): void => {
     recoveringSessions.add(sessionID)
@@ -94,6 +97,14 @@ export function createTodoContinuationEnforcer(
 
   const markRecoveryComplete = (sessionID: string): void => {
     recoveringSessions.delete(sessionID)
+  }
+
+  const toolExecuteAfter = async (input: { tool: string; sessionID: string; callID: string; args?: Record<string, unknown> }): Promise<void> => {
+    const { tool, sessionID } = input
+    if (tool.toLowerCase() === "interactive_bash") {
+      interactiveBashTimestamps.set(sessionID, Date.now())
+      log(`[${HOOK_NAME}] Tracked interactive_bash execution`, { sessionID })
+    }
   }
 
   const handler = async ({ event }: { event: { type: string; properties?: unknown } }): Promise<void> => {
@@ -128,6 +139,15 @@ export function createTodoContinuationEnforcer(
       if (mainSessionID && sessionID !== mainSessionID) {
         log(`[${HOOK_NAME}] Skipped: not main session`, { sessionID, mainSessionID })
         return
+      }
+
+      const lastInteractiveBashTime = interactiveBashTimestamps.get(sessionID)
+      if (lastInteractiveBashTime) {
+        const timeSinceInteractiveBash = Date.now() - lastInteractiveBashTime
+        if (timeSinceInteractiveBash < INTERACTIVE_BASH_DEBOUNCE_MS) {
+          log(`[${HOOK_NAME}] Skipped: recent interactive_bash usage`, { sessionID, timeSinceInteractiveBash })
+          return
+        }
       }
 
       const existingCountdown = pendingCountdowns.get(sessionID)
@@ -370,6 +390,7 @@ export function createTodoContinuationEnforcer(
         errorSessions.delete(sessionInfo.id)
         recoveringSessions.delete(sessionInfo.id)
         preemptivelyInjectedSessions.delete(sessionInfo.id)
+        interactiveBashTimestamps.delete(sessionInfo.id)
         
         const countdown = pendingCountdowns.get(sessionInfo.id)
         if (countdown) {
@@ -382,6 +403,7 @@ export function createTodoContinuationEnforcer(
 
   return {
     handler,
+    toolExecuteAfter,
     markRecovering,
     markRecoveryComplete,
   }
