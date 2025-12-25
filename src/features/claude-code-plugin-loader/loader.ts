@@ -20,6 +20,8 @@ import type {
   PluginLoadError,
   PluginScope,
   HooksConfig,
+  ClaudeSettings,
+  PluginLoaderOptions,
 } from "./types"
 
 const CLAUDE_PLUGIN_ROOT_VAR = "${CLAUDE_PLUGIN_ROOT}"
@@ -73,6 +75,28 @@ function loadInstalledPlugins(): InstalledPluginsDatabase | null {
   }
 }
 
+function getClaudeSettingsPath(): string {
+  if (process.env.CLAUDE_SETTINGS_PATH) {
+    return process.env.CLAUDE_SETTINGS_PATH
+  }
+  return join(homedir(), ".claude", "settings.json")
+}
+
+function loadClaudeSettings(): ClaudeSettings | null {
+  const settingsPath = getClaudeSettingsPath()
+  if (!existsSync(settingsPath)) {
+    return null
+  }
+
+  try {
+    const content = readFileSync(settingsPath, "utf-8")
+    return JSON.parse(content) as ClaudeSettings
+  } catch (error) {
+    log("Failed to load Claude settings", error)
+    return null
+  }
+}
+
 function loadPluginManifest(installPath: string): PluginManifest | null {
   const manifestPath = join(installPath, ".claude-plugin", "plugin.json")
   if (!existsSync(manifestPath)) {
@@ -88,8 +112,31 @@ function loadPluginManifest(installPath: string): PluginManifest | null {
   }
 }
 
-export function discoverInstalledPlugins(): PluginLoadResult {
+function derivePluginNameFromKey(pluginKey: string): string {
+  const atIndex = pluginKey.indexOf("@")
+  if (atIndex > 0) {
+    return pluginKey.substring(0, atIndex)
+  }
+  return pluginKey
+}
+
+function isPluginEnabled(
+  pluginKey: string,
+  settingsEnabledPlugins: Record<string, boolean> | undefined,
+  overrideEnabledPlugins: Record<string, boolean> | undefined
+): boolean {
+  if (overrideEnabledPlugins && pluginKey in overrideEnabledPlugins) {
+    return overrideEnabledPlugins[pluginKey]
+  }
+  if (settingsEnabledPlugins && pluginKey in settingsEnabledPlugins) {
+    return settingsEnabledPlugins[pluginKey]
+  }
+  return true
+}
+
+export function discoverInstalledPlugins(options?: PluginLoaderOptions): PluginLoadResult {
   const db = loadInstalledPlugins()
+  const settings = loadClaudeSettings()
   const plugins: LoadedPlugin[] = []
   const errors: PluginLoadError[] = []
 
@@ -97,8 +144,16 @@ export function discoverInstalledPlugins(): PluginLoadResult {
     return { plugins, errors }
   }
 
+  const settingsEnabledPlugins = settings?.enabledPlugins
+  const overrideEnabledPlugins = options?.enabledPluginsOverride
+
   for (const [pluginKey, installations] of Object.entries(db.plugins)) {
     if (!installations || installations.length === 0) continue
+
+    if (!isPluginEnabled(pluginKey, settingsEnabledPlugins, overrideEnabledPlugins)) {
+      log(`Plugin disabled: ${pluginKey}`)
+      continue
+    }
 
     const installation = installations[0]
     const { installPath, scope, version } = installation
@@ -113,21 +168,15 @@ export function discoverInstalledPlugins(): PluginLoadResult {
     }
 
     const manifest = loadPluginManifest(installPath)
-    if (!manifest) {
-      errors.push({
-        pluginKey,
-        installPath,
-        error: "Failed to load plugin manifest",
-      })
-      continue
-    }
+    const pluginName = manifest?.name || derivePluginNameFromKey(pluginKey)
 
     const loadedPlugin: LoadedPlugin = {
-      name: manifest.name,
-      version: version || manifest.version || "unknown",
+      name: pluginName,
+      version: version || manifest?.version || "unknown",
       scope: scope as PluginScope,
       installPath,
-      manifest,
+      pluginKey,
+      manifest: manifest ?? undefined,
     }
 
     if (existsSync(join(installPath, "commands"))) {
@@ -151,7 +200,7 @@ export function discoverInstalledPlugins(): PluginLoadResult {
     }
 
     plugins.push(loadedPlugin)
-    log(`Discovered plugin: ${manifest.name}@${version} (${scope})`, { installPath })
+    log(`Discovered plugin: ${pluginName}@${version} (${scope})`, { installPath, hasManifest: !!manifest })
   }
 
   return { plugins, errors }
@@ -399,8 +448,8 @@ export interface PluginComponentsResult {
   errors: PluginLoadError[]
 }
 
-export async function loadAllPluginComponents(): Promise<PluginComponentsResult> {
-  const { plugins, errors } = discoverInstalledPlugins()
+export async function loadAllPluginComponents(options?: PluginLoaderOptions): Promise<PluginComponentsResult> {
+  const { plugins, errors } = discoverInstalledPlugins(options)
 
   const commands = loadPluginCommands(plugins)
   const skills = loadPluginSkillsAsCommands(plugins)

@@ -104,6 +104,7 @@ export const ClaudeCodeConfigSchema = z.object({
   agents: z.boolean().optional(),
   hooks: z.boolean().optional(),
   plugins: z.boolean().optional(),
+  plugins_override: z.record(z.string(), z.boolean()).optional(),
 })
 
 export const SisyphusAgentConfigSchema = z.object({

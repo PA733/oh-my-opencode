@@ -145,7 +145,8 @@ export interface LoadedPlugin {
   version: string
   scope: PluginScope
   installPath: string
-  manifest: PluginManifest
+  manifest?: PluginManifest
+  pluginKey: string
   
   // Resolved paths for components
   commandsDir?: string
@@ -168,4 +169,27 @@ export interface PluginLoadError {
   pluginKey: string
   installPath: string
   error: string
+}
+
+/**
+ * Claude settings from ~/.claude/settings.json
+ */
+export interface ClaudeSettings {
+  enabledPlugins?: Record<string, boolean>
+  // Other settings we don't use
+  [key: string]: unknown
+}
+
+/**
+ * Plugin loader options
+ */
+export interface PluginLoaderOptions {
+  /**
+   * Override enabled plugins from oh-my-opencode config.
+   * Key format: "pluginName@marketplace" (e.g., "shell-scripting@claude-code-workflows")
+   * Value: true = enabled, false = disabled
+   * 
+   * This takes precedence over ~/.claude/settings.json enabledPlugins
+   */
+  enabledPluginsOverride?: Record<string, boolean>
 }

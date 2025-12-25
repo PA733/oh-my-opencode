@@ -370,7 +370,9 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       }
 
       const pluginComponents = (pluginConfig.claude_code?.plugins ?? true)
-        ? await loadAllPluginComponents()
+        ? await loadAllPluginComponents({
+            enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
+          })
         : { commands: {}, skills: {}, agents: {}, mcpServers: {}, hooksConfigs: [], plugins: [], errors: [] };
 
       if (pluginComponents.plugins.length > 0) {
