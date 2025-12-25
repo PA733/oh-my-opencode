@@ -452,8 +452,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         const filteredConfigAgents = config.agent ? 
           Object.fromEntries(
             Object.entries(config.agent).filter(([key]) => {
-              if (key === "build") return false;
-              if (key === "plan" && replacePlan) return false;
+              if (key === "build" && builderEnabled) return false;
+              if (key === "plan" && plannerEnabled && replacePlan) return false;
               return true;
             })
           ) : {};
@@ -464,9 +464,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           ...userAgents,
           ...projectAgents,
           ...filteredConfigAgents,  // Filtered config agents (excludes build/plan if replaced)
-          // Demote build/plan to subagent mode when replaced
-          build: { ...config.agent?.build, mode: "subagent" },
-          ...(replacePlan ? { plan: { ...config.agent?.plan, mode: "subagent" } } : {}),
+          // Add plan as subagent when planner is disabled (for backward compatibility)
+          ...(replacePlan && !plannerEnabled ? { plan: { ...config.agent?.plan, mode: "subagent" } } : {}),
         };
       } else {
         config.agent = {
