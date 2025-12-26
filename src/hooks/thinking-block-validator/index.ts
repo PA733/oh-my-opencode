@@ -30,17 +30,23 @@ type MessagesTransformHook = {
 
 /**
  * Check if a model has extended thinking enabled
+ * Uses patterns from think-mode/switcher.ts for consistency
  */
 function isExtendedThinkingModel(modelID: string): boolean {
   if (!modelID) return false
   const lower = modelID.toLowerCase()
 
-  // Check for thinking-specific model variants
+  // Check for explicit thinking/high variants (always enabled)
+  if (lower.includes("thinking") || lower.endsWith("-high")) {
+    return true
+  }
+
+  // Check for thinking-capable models (claude-4 family, claude-3)
+  // Aligns with THINKING_CAPABLE_MODELS in think-mode/switcher.ts
   return (
-    lower.includes("thinking") ||
-    lower.includes("-high") ||
-    lower.includes("opus-4") ||
-    lower.includes("sonnet-4")
+    lower.includes("claude-sonnet-4") ||
+    lower.includes("claude-opus-4") ||
+    lower.includes("claude-3")
   )
 }
 

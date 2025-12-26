@@ -370,6 +370,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       output: { messages: Array<{ info: unknown; parts: unknown[] }> }
     ) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await thinkingBlockValidator?.["experimental.chat.messages.transform"]?.(input, output as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await emptyMessageSanitizer?.["experimental.chat.messages.transform"]?.(input, output as any);
     },
 
@@ -457,7 +459,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           Object.fromEntries(
             Object.entries(config.agent).filter(([key]) => {
               if (key === "build" && builderEnabled) return false;
-              if (key === "plan" && plannerEnabled && replacePlan) return false;
+              if (key === "plan" && replacePlan) return false;
               return true;
             })
           ) : {};
