@@ -20,6 +20,7 @@ const pendingCalls = new Map<string, PendingCall>()
 const PENDING_CALL_TTL = 60_000
 
 let cliPathPromise: Promise<string | null> | null = null
+let cleanupIntervalStarted = false
 
 function cleanupOldPendingCalls(): void {
   const now = Date.now()
@@ -30,10 +31,13 @@ function cleanupOldPendingCalls(): void {
   }
 }
 
-setInterval(cleanupOldPendingCalls, 10_000)
-
 export function createCommentCheckerHooks() {
   debugLog("createCommentCheckerHooks called")
+
+  if (!cleanupIntervalStarted) {
+    cleanupIntervalStarted = true
+    setInterval(cleanupOldPendingCalls, 10_000)
+  }
   
   // Start background CLI initialization (may trigger lazy download)
   startBackgroundInit()
