@@ -72,11 +72,28 @@
   - [安装](#安装)
     - [人类专用](#人类专用)
     - [给 LLM Agent 看的](#给-llm-agent-看的)
+    - [步骤 0：确认订阅情况](#步骤-0确认订阅情况)
+    - [步骤 1：确认 OpenCode 装没装](#步骤-1确认-opencode-装没装)
+    - [步骤 2：跑安装程序](#步骤-2跑安装程序)
+      - [JSONC](#jsonc)
+      - [JSON](#json)
+    - [步骤 3：验货](#步骤-3验货)
+    - [步骤 4：搞定认证](#步骤-4搞定认证)
+      - [Anthropic (Claude)](#anthropic-claude)
+      - [Google Gemini (Antigravity OAuth)](#google-gemini-antigravity-oauth)
+      - [OpenAI (ChatGPT Plus/Pro)](#openai-chatgpt-pluspro)
+        - [模型配置](#模型配置)
+    - [⚠️ 注意](#️-注意)
+    - [检查作业](#检查作业)
+    - [跟用户说"恭喜！🎉"](#跟用户说恭喜)
+    - [太麻烦了？](#太麻烦了)
+  - [卸载](#卸载)
   - [功能](#功能)
     - [Agents：你的神队友](#agents你的神队友)
     - [后台 Agent：像真正的团队一样干活](#后台-agent像真正的团队一样干活)
     - [工具：给队友配点好的](#工具给队友配点好的)
       - [凭什么只有你能用 IDE？](#凭什么只有你能用-ide)
+      - [会话管理](#会话管理)
       - [上下文就是一切 (Context is all you need)](#上下文就是一切-context-is-all-you-need)
       - [多模态全开，Token 省着用](#多模态全开token-省着用)
       - [根本停不下来的 Agent Loop](#根本停不下来的-agent-loop)
@@ -178,7 +195,17 @@ oMoMoMoMoMo···
 
 ### 人类专用
 
-这种脏活累活让 LLM Agent 干。把这个链接复制粘贴到 opencode 会话里，让它自己动：
+运行交互式安装程序：
+
+```bash
+bunx oh-my-opencode install
+```
+
+按照提示配置你的 Claude、ChatGPT 和 Gemini 订阅。安装完成后，按照说明验证你的服务商。
+
+**备选：让 LLM Agent 帮你干**
+
+把这个粘贴到一个新的 opencode 会话里：
 ```
 Install and configure by following the instructions here https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads/master/README.md
 ```
@@ -439,8 +466,8 @@ gh repo star code-yeongyu/oh-my-opencode
 - **oracle** (`openai/gpt-5.2`)：架构师、代码审查员、战略家。GPT-5.2 的逻辑推理和深度分析能力不是盖的。致敬 AmpCode。
 - **librarian** (`anthropic/claude-sonnet-4-5` 或 `google/gemini-3-flash`)：多仓库分析、查文档、找示例。配置 Antigravity 认证时使用 Gemini 3 Flash，否则使用 Claude Sonnet 4.5 深入理解代码库，GitHub 调研，给出的答案都有据可查。致敬 AmpCode。
 - **explore** (`opencode/grok-code`、`google/gemini-3-flash` 或 `anthropic/claude-haiku-4-5`)：极速代码库扫描、模式匹配。配置 Antigravity 认证时使用 Gemini 3 Flash，Claude max20 可用时使用 Haiku，否则用 Grok。致敬 Claude Code。
-- **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`)：设计师出身的程序员。UI 做得那是真漂亮。Gemini 写这种创意美观的代码是一绝。
-- **document-writer** (`google/gemini-3-pro-preview`)：技术写作专家。Gemini 文笔好，写出来的东西读着顺畅。
+- **frontend-ui-ux-engineer** (`google/gemini-3-pro-high`)：设计师出身的程序员。UI 做得那是真漂亮。Gemini 写这种创意美观的代码是一绝。
+- **document-writer** (`google/gemini-3-flash`)：技术写作专家。Gemini 文笔好，写出来的东西读着顺畅。
 - **multimodal-looker** (`google/gemini-3-flash`)：视觉内容专家。PDF、图片、图表，看一眼就知道里头有啥。
 
 主 Agent 会自动调遣它们，你也可以亲自点名：
@@ -658,6 +685,10 @@ Agent 爽了，你自然也爽。但我还想直接让你爽。
 - **空消息清理器**：防止发空消息导致 API 报错。发出去之前自动打扫干净。
 - **Grep 输出截断器**：grep 结果太多？根据剩余窗口动态截断——留 50% 空间，顶天 50k token。
 - **工具输出截断器**：Grep、Glob、LSP、AST-grep 统统管上。防止一次无脑搜索把上下文撑爆。
+- **先发制人压缩**：主动压缩会话，别等撞上硬限制再着急。
+- **压缩上下文注入器**：压缩会话时保留关键上下文（AGENTS.md、当前目录信息），别让重要状态丢了。
+- **思考块验证器**：验证思考块格式是否正确，防止格式错误导致 API 报错。
+- **Claude Code Hooks**：执行 Claude Code settings.json 里的 hook——这是跑 PreToolUse/PostToolUse/UserPromptSubmit/Stop hook 的兼容层。
 
 ## 配置
 
