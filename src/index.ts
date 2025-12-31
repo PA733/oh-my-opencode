@@ -111,7 +111,7 @@ function migrateHookNames(hooks: string[]): { migrated: string[]; changed: boole
   let changed = false;
 
   for (const hook of hooks) {
-    const newHook = HOOK_NAME_MAP[hook] ?? hook;
+    const newHook = HOOK_NAME_MAP[hook.toLowerCase()] ?? HOOK_NAME_MAP[hook] ?? hook;
     if (newHook !== hook) {
       changed = true;
     }

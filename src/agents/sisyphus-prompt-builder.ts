@@ -11,6 +11,10 @@ export interface AvailableTool {
   category: "lsp" | "ast" | "search" | "session" | "command" | "other"
 }
 
+function escapeTableCell(text: string): string {
+  return text.replace(/\|/g, "\\|").replace(/\n/g, " ")
+}
+
 export function categorizeTools(toolNames: string[]): AvailableTool[] {
   return toolNames.map((name) => {
     let category: AvailableTool["category"] = "other"
@@ -56,12 +60,16 @@ export function buildKeyTriggersSection(agents: AvailableAgent[]): string {
     .filter((a) => a.metadata.keyTrigger)
     .map((a) => `- ${a.metadata.keyTrigger}`)
 
-  if (keyTriggers.length === 0) return ""
+  // Universal triggers that should ALWAYS be present
+  const universalTriggers = [
+    `- **GitHub mention (@mention in issue/PR)** → This is a WORK REQUEST. Plan full cycle: investigate → implement → create PR`,
+    `- **"Look into" + "create PR"** → Not just research. Full implementation cycle expected.`,
+  ]
+
+  const allTriggers = [...keyTriggers, ...universalTriggers]
 
   return `### Key Triggers (check BEFORE classification):
-${keyTriggers.join("\n")}
-- **GitHub mention (@mention in issue/PR)** → This is a WORK REQUEST. Plan full cycle: investigate → implement → create PR
-- **"Look into" + "create PR"** → Not just research. Full implementation cycle expected.`
+${allTriggers.join("\n")}`
 }
 
 export function buildToolSelectionTable(agents: AvailableAgent[], tools: AvailableTool[] = []): string {
@@ -74,7 +82,9 @@ export function buildToolSelectionTable(agents: AvailableAgent[], tools: Availab
 
   if (tools.length > 0) {
     const toolsDisplay = formatToolsForPrompt(tools)
-    rows.push(`| ${toolsDisplay} | FREE | Not Complex, Scope Clear, No Implicit Assumptions |`)
+    if (toolsDisplay) {
+      rows.push(`| ${toolsDisplay} | FREE | Not Complex, Scope Clear, No Implicit Assumptions |`)
+    }
   }
 
   const costOrder = { FREE: 0, CHEAP: 1, EXPENSIVE: 2 }
@@ -84,7 +94,7 @@ export function buildToolSelectionTable(agents: AvailableAgent[], tools: Availab
 
   for (const agent of sortedAgents) {
     const shortDesc = agent.description.split(".")[0] || agent.description
-    rows.push(`| \`${agent.name}\` agent | ${agent.metadata.cost} | ${shortDesc} |`)
+    rows.push(`| \`${agent.name}\` agent | ${agent.metadata.cost} | ${escapeTableCell(shortDesc)} |`)
   }
 
   rows.push("")
@@ -143,7 +153,7 @@ export function buildDelegationTable(agents: AvailableAgent[]): string {
 
   for (const agent of agents) {
     for (const trigger of agent.metadata.triggers) {
-      rows.push(`| ${trigger.domain} | \`${agent.name}\` | ${trigger.trigger} |`)
+      rows.push(`| ${escapeTableCell(trigger.domain)} | \`${agent.name}\` | ${escapeTableCell(trigger.trigger)} |`)
     }
   }
 
