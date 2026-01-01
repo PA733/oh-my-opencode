@@ -2,8 +2,8 @@
 >
 > *"I aim to spark a software revolution by creating a world where agent-generated code is indistinguishable from human code, yet capable of achieving vastly more. I have poured my personal time, passion, and funds into this journey, and I will continue to do so."*
 >
-> [![The Orchestrator is coming](./.github/assets/orchestrator-sisyphus.png)](https://x.com/justsisyphus/status/2006250634354548963)
-> > **The Orchestrator is coming. This Week. [Get notified on X](https://x.com/justsisyphus/status/2006250634354548963)**
+> [![Sisyphus - The Orchestrator](./.github/assets/orchestrator-sisyphus.png)](https://github.com/code-yeongyu/oh-my-opencode)
+> > **Sisyphus - The Orchestrator is here.** Multi-model orchestration with parallel agent execution, background task delegation, and intelligent agent routing. [Learn more](https://github.com/code-yeongyu/oh-my-opencode#agents-your-teammates)
 >
 > Be with us!
 >
@@ -526,6 +526,7 @@ Hand your best tools to your best colleagues. Now they can properly refactor, na
 - **ast_grep_search**: AST-aware code pattern search (25 languages)
 - **ast_grep_replace**: AST-aware code replacement
 - **call_omo_agent**: Spawn specialized explore/librarian agents. Supports `run_in_background` parameter for async execution.
+- **skill_mcp**: Invoke MCP server operations from skill-embedded MCPs. Skills can define MCP configs that agents access via this tool—supports calling tools, reading resources, and getting prompts from skill MCPs.
 
 #### Session Management
 
@@ -676,6 +677,7 @@ When agents thrive, you thrive. But I want to help you directly too.
   - Auto-continues if agent stops without completion promise
   - Ends when: completion detected, max iterations reached (default 100), or `/cancel-ralph`
   - Configure in `oh-my-opencode.json`: `{ "ralph_loop": { "enabled": true, "default_max_iterations": 100 } }`
+- **Auto Slash Command**: Automatically detects and expands slash commands in user prompts. When you type `/command-name`, it finds the matching command template and replaces your message with the expanded content. Works with commands from `~/.claude/commands/`, `./.claude/commands/`, and OpenCode command directories.
 - **Keyword Detector**: Automatically detects keywords in your prompts and activates specialized modes:
   - `ultrawork` / `ulw`: Maximum performance mode with parallel agent orchestration
   - `search` / `find` / `찾아` / `検索`: Maximized search effort with parallel explore and librarian agents
@@ -941,7 +943,7 @@ Disable specific built-in hooks via `disabled_hooks` in `~/.config/opencode/oh-m
 }
 ```
 
-Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `empty-message-sanitizer`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`
+Available hooks: `todo-continuation-enforcer`, `context-window-monitor`, `session-recovery`, `session-notification`, `comment-checker`, `grep-output-truncator`, `tool-output-truncator`, `directory-agents-injector`, `directory-readme-injector`, `empty-task-response-detector`, `think-mode`, `anthropic-context-window-limit-recovery`, `rules-injector`, `background-notification`, `auto-update-checker`, `startup-toast`, `keyword-detector`, `agent-usage-reminder`, `non-interactive-env`, `interactive-bash-session`, `empty-message-sanitizer`, `compaction-context-injector`, `thinking-block-validator`, `claude-code-hooks`, `ralph-loop`, `preemptive-compaction`, `auto-slash-command`
 
 **Note on `auto-update-checker` and `startup-toast`**: The `startup-toast` hook is a sub-feature of `auto-update-checker`. To disable only the startup toast notification while keeping update checking enabled, add `"startup-toast"` to `disabled_hooks`. To disable all update checking features (including the toast), add `"auto-update-checker"` to `disabled_hooks`.
 
