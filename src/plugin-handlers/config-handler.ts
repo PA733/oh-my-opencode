@@ -66,9 +66,12 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     }
 
     const pluginComponents = (pluginConfig.claude_code?.plugins ?? true)
-      ? await loadAllPluginComponents({
-          enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
-        })
+      ? await loadAllPluginComponents(
+          {
+            enabledPluginsOverride: pluginConfig.claude_code?.plugins_override,
+          },
+          pluginConfig.disabled_mcps
+        )
       : {
           commands: {},
           skills: {},
@@ -271,7 +274,7 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     };
 
     const mcpResult = (pluginConfig.claude_code?.mcp ?? true)
-      ? await loadMcpConfigs()
+      ? await loadMcpConfigs(pluginConfig.disabled_mcps)
       : { servers: {} };
 
     config.mcp = {

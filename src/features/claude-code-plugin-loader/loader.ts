@@ -388,7 +388,8 @@ export function loadPluginAgents(
 }
 
 export async function loadPluginMcpServers(
-  plugins: LoadedPlugin[]
+  plugins: LoadedPlugin[],
+  disabledMcps: string[] = []
 ): Promise<Record<string, McpServerConfig>> {
   const servers: Record<string, McpServerConfig> = {}
 
@@ -405,6 +406,13 @@ export async function loadPluginMcpServers(
       if (!config.mcpServers) continue
 
       for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+        const namespacedName = `${plugin.name}:${name}`
+
+        if (disabledMcps.includes(namespacedName) || disabledMcps.includes(name)) {
+          log(`Skipping plugin MCP "${namespacedName}" (in disabled_mcps)`, { path: plugin.mcpPath })
+          continue
+        }
+
         if (serverConfig.disabled) {
           log(`Skipping disabled MCP server "${name}" from plugin ${plugin.name}`)
           continue
@@ -412,7 +420,6 @@ export async function loadPluginMcpServers(
 
         try {
           const transformed = transformMcpServer(name, serverConfig)
-          const namespacedName = `${plugin.name}:${name}`
           servers[namespacedName] = transformed
           log(`Loaded plugin MCP server: ${namespacedName}`, { path: plugin.mcpPath })
         } catch (error) {
@@ -461,14 +468,17 @@ export interface PluginComponentsResult {
   errors: PluginLoadError[]
 }
 
-export async function loadAllPluginComponents(options?: PluginLoaderOptions): Promise<PluginComponentsResult> {
+export async function loadAllPluginComponents(
+  options?: PluginLoaderOptions,
+  disabledMcps: string[] = []
+): Promise<PluginComponentsResult> {
   const { plugins, errors } = discoverInstalledPlugins(options)
 
   const [commands, skills, agents, mcpServers, hooksConfigs] = await Promise.all([
     Promise.resolve(loadPluginCommands(plugins)),
     Promise.resolve(loadPluginSkillsAsCommands(plugins)),
     Promise.resolve(loadPluginAgents(plugins)),
-    loadPluginMcpServers(plugins),
+    loadPluginMcpServers(plugins, disabledMcps),
     Promise.resolve(loadPluginHooksConfigs(plugins)),
   ])
 

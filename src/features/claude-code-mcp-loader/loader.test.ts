@@ -160,3 +160,158 @@ describe("getSystemMcpServerNames", () => {
     }
   })
 })
+
+describe("loadMcpConfigs with disabled_mcps", () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true })
+  })
+
+  it("should filter out custom MCPs in disabled_mcps list", async () => {
+    // #given
+    const mcpConfig = {
+      mcpServers: {
+        playwright: {
+          command: "npx",
+          args: ["@playwright/mcp@latest"],
+        },
+        sqlite: {
+          command: "uvx",
+          args: ["mcp-server-sqlite"],
+        },
+        "custom-server": {
+          command: "node",
+          args: ["custom-mcp"],
+        },
+      },
+    }
+    writeFileSync(join(TEST_DIR, ".mcp.json"), JSON.stringify(mcpConfig))
+
+    const originalCwd = process.cwd()
+    process.chdir(TEST_DIR)
+
+    try {
+      // #when
+      const { loadMcpConfigs } = await import("./loader")
+      const result = await loadMcpConfigs(["playwright", "custom-server"])
+
+      // #then
+      expect(result.servers).toBeDefined()
+      expect(result.servers["sqlite"]).toBeDefined()
+      expect(result.servers["playwright"]).toBeUndefined()
+      expect(result.servers["custom-server"]).toBeUndefined()
+      expect(Object.keys(result.servers).length).toBe(1)
+    } finally {
+      process.chdir(originalCwd)
+    }
+  })
+
+  it("should respect both disabled_mcps and disabled:true", async () => {
+    // #given
+    const mcpConfig = {
+      mcpServers: {
+        playwright: {
+          command: "npx",
+          args: ["@playwright/mcp@latest"],
+        },
+        sqlite: {
+          command: "uvx",
+          args: ["mcp-server-sqlite"],
+          disabled: true,
+        },
+      },
+    }
+    writeFileSync(join(TEST_DIR, ".mcp.json"), JSON.stringify(mcpConfig))
+
+    const originalCwd = process.cwd()
+    process.chdir(TEST_DIR)
+
+    try {
+      // #when
+      const { loadMcpConfigs } = await import("./loader")
+      const result = await loadMcpConfigs(["playwright"])
+
+      // #then
+      expect(result.servers).toBeDefined()
+      expect(result.servers["playwright"]).toBeUndefined()
+      expect(result.servers["sqlite"]).toBeUndefined()
+      expect(Object.keys(result.servers).length).toBe(0)
+    } finally {
+      process.chdir(originalCwd)
+    }
+  })
+
+  it("should filter across all scopes (user, project, local)", async () => {
+    // #given
+    const claudeDir = join(TEST_DIR, ".claude")
+    mkdirSync(claudeDir, { recursive: true })
+
+    const projectMcp = {
+      mcpServers: {
+        playwright: { command: "npx", args: ["@playwright/mcp@latest"] },
+      },
+    }
+    const localMcp = {
+      mcpServers: {
+        sqlite: { command: "uvx", args: ["mcp-server-sqlite"] },
+      },
+    }
+
+    writeFileSync(join(TEST_DIR, ".mcp.json"), JSON.stringify(projectMcp))
+    writeFileSync(join(claudeDir, ".mcp.json"), JSON.stringify(localMcp))
+
+    const originalCwd = process.cwd()
+    process.chdir(TEST_DIR)
+
+    try {
+      // #when
+      const { loadMcpConfigs } = await import("./loader")
+      const result = await loadMcpConfigs(["playwright"])
+
+      // #then
+      expect(result.servers).toBeDefined()
+      expect(result.servers["playwright"]).toBeUndefined()
+      expect(result.servers["sqlite"]).toBeDefined()
+      expect(Object.keys(result.servers).length).toBe(1)
+    } finally {
+      process.chdir(originalCwd)
+    }
+  })
+
+  it("should not filter when disabled_mcps is empty", async () => {
+    // #given
+    const mcpConfig = {
+      mcpServers: {
+        playwright: {
+          command: "npx",
+          args: ["@playwright/mcp@latest"],
+        },
+        sqlite: {
+          command: "uvx",
+          args: ["mcp-server-sqlite"],
+        },
+      },
+    }
+    writeFileSync(join(TEST_DIR, ".mcp.json"), JSON.stringify(mcpConfig))
+
+    const originalCwd = process.cwd()
+    process.chdir(TEST_DIR)
+
+    try {
+      // #when
+      const { loadMcpConfigs } = await import("./loader")
+      const result = await loadMcpConfigs([])
+
+      // #then
+      expect(result.servers).toBeDefined()
+      expect(result.servers["playwright"]).toBeDefined()
+      expect(result.servers["sqlite"]).toBeDefined()
+      expect(Object.keys(result.servers).length).toBe(2)
+    } finally {
+      process.chdir(originalCwd)
+    }
+  })
+})

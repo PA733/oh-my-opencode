@@ -66,7 +66,9 @@ export function getSystemMcpServerNames(): Set<string> {
   return names
 }
 
-export async function loadMcpConfigs(): Promise<McpLoadResult> {
+export async function loadMcpConfigs(
+  disabledMcps: string[] = []
+): Promise<McpLoadResult> {
   const servers: McpLoadResult["servers"] = {}
   const loadedServers: LoadedMcpServer[] = []
   const paths = getMcpConfigPaths()
@@ -76,6 +78,11 @@ export async function loadMcpConfigs(): Promise<McpLoadResult> {
     if (!config?.mcpServers) continue
 
     for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+      if (disabledMcps.includes(name)) {
+        log(`Skipping MCP "${name}" (in disabled_mcps)`, { path })
+        continue
+      }
+
       if (serverConfig.disabled) {
         log(`Skipping disabled MCP server "${name}"`, { path })
         continue
