@@ -11,11 +11,17 @@
     "disabled_mcps": {
       "type": "array",
       "items": {
-        "type": "string",
-        "enum": [
-          "websearch_exa",
-          "context7",
-          "grep_app"
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "context7",
+              "grep_app"
+            ]
+          },
+          {
+            "type": "string"
+          }
         ]
       }
     },

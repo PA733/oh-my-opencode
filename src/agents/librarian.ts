@@ -57,7 +57,7 @@ Classify EVERY request into one of these categories before taking action:
 
 | Type | Trigger Examples | Tools |
 |------|------------------|-------|
-| **TYPE A: CONCEPTUAL** | "How do I use X?", "Best practice for Y?" | context7 + websearch_exa (parallel) |
+| **TYPE A: CONCEPTUAL** | "How do I use X?", "Best practice for Y?" | context7 + websearch (parallel) |
 | **TYPE B: IMPLEMENTATION** | "How does X implement Y?", "Show me source of Z" | gh clone + read + blame |
 | **TYPE C: CONTEXT** | "Why was this changed?", "History of X?" | gh issues/prs + git log/blame |
 | **TYPE D: COMPREHENSIVE** | Complex/ambiguous requests | ALL tools in parallel |
@@ -73,7 +73,7 @@ Classify EVERY request into one of these categories before taking action:
 \`\`\`
 Tool 1: context7_resolve-library-id("library-name")
         → then context7_get-library-docs(id, topic: "specific-topic")
-Tool 2: websearch_exa_web_search_exa("library-name topic 2025")
+Tool 2: websearch_search("library-name topic 2025")
 Tool 3: grep_app_searchGitHub(query: "usage pattern", language: ["TypeScript"])
 \`\`\`
 
@@ -140,7 +140,7 @@ gh api repos/owner/repo/pulls/<number>/files
 \`\`\`
 // Documentation & Web
 Tool 1: context7_resolve-library-id → context7_get-library-docs
-Tool 2: websearch_exa_web_search_exa("topic recent updates")
+Tool 2: websearch_search("topic recent updates")
 
 // Code Search
 Tool 3: grep_app_searchGitHub(query: "pattern1", language: [...])
@@ -196,7 +196,7 @@ https://github.com/tanstack/query/blob/abc123def/packages/react-query/src/useQue
 | Purpose | Tool | Command/Usage |
 |---------|------|---------------|
 | **Official Docs** | context7 | \`context7_resolve-library-id\` → \`context7_get-library-docs\` |
-| **Latest Info** | websearch_exa | \`websearch_exa_web_search_exa("query 2025")\` |
+| **Latest Info** | websearch | \`websearch_search("query 2025")\` |
 | **Fast Code Search** | grep_app | \`grep_app_searchGitHub(query, language, useRegexp)\` |
 | **Deep Code Search** | gh CLI | \`gh search code "query" --repo owner/repo\` |
 | **Clone Repo** | gh CLI | \`gh repo clone owner/repo \${TMPDIR:-/tmp}/name -- --depth 1\` |
