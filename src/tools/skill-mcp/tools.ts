@@ -114,7 +114,7 @@ export function createSkillMcpTool(options: SkillMcpToolOptions): ToolDefinition
       tool_name: tool.schema.string().optional().describe("MCP tool to call"),
       resource_name: tool.schema.string().optional().describe("MCP resource URI to read"),
       prompt_name: tool.schema.string().optional().describe("MCP prompt to get"),
-      arguments: tool.schema.string().optional().describe("JSON string of arguments"),
+      arguments: tool.schema.any().optional().describe("JSON string or object of arguments"),
       grep: tool.schema.string().optional().describe("Regex pattern to filter output lines (only matching lines returned)"),
     },
     async execute(args: SkillMcpArgs) {
