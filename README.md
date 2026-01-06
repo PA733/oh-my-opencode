@@ -1031,7 +1031,8 @@ Opt-in experimental features that may change or be removed in future versions. U
     "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
-    "auto_resume": true
+    "auto_resume": true,
+    "allow_background_agent_subagents": false
   }
 }
 ```
@@ -1043,6 +1044,7 @@ Opt-in experimental features that may change or be removed in future versions. U
 | `aggressive_truncation`     | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
 | `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                            |
 | `dcp_for_compaction`        | `false` | Enable DCP (Dynamic Context Pruning) for compaction - runs first when token limit exceeded. Prunes duplicate tool calls and old tool outputs before running compaction.                      |
+| `allow_background_agent_subagents` | `false` | Allow background agents to spawn recursive subagents via `call_omo_agent`. **WARNING:** May cause exponential task cascades (800+ tasks). Only enable if you need heavy parallel agent orchestration. |
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 

@@ -970,7 +970,8 @@ OpenCode でサポートされるすべての LSP 構成およびカスタム設
     "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
-    "auto_resume": true
+    "auto_resume": true,
+    "allow_background_agent_subagents": false
   }
 }
 ```
@@ -982,6 +983,7 @@ OpenCode でサポートされるすべての LSP 構成およびカスタム設
 | `aggressive_truncation`           | `false`    | トークン制限を超えた場合、ツール出力を積極的に切り詰めて制限内に収めます。デフォルトの切り詰めより積極的です。不十分な場合は要約/復元にフォールバックします。                 |
 | `auto_resume`                     | `false`    | thinking block エラーや thinking disabled violation からの回復成功後、自動的にセッションを再開します。最後のユーザーメッセージを抽出して続行します。                        |
 | `dcp_for_compaction`              | `false`    | コンパクション用DCP（動的コンテキスト整理）を有効化 - トークン制限超過時に最初に実行されます。コンパクション前に重複したツール呼び出しと古いツール出力を整理します。                |
+| `allow_background_agent_subagents` | `false`   | バックグラウンドエージェントが `call_omo_agent` を介して再帰的にサブエージェントを生成することを許可します。**警告:** 指数関数的なタスクの急増（800+タスク）を引き起こす可能性があります。大規模な並列エージェントオーケストレーションが必要な場合にのみ有効にしてください。 |
 
 **警告**：これらの機能は実験的であり、予期しない動作を引き起こす可能性があります。影響を理解した場合にのみ有効にしてください。
 

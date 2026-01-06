@@ -963,7 +963,8 @@ OpenCode 에서 지원하는 모든 LSP 구성 및 커스텀 설정 (opencode.js
     "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
-    "auto_resume": true
+    "auto_resume": true,
+    "allow_background_agent_subagents": false
   }
 }
 ```
@@ -975,6 +976,7 @@ OpenCode 에서 지원하는 모든 LSP 구성 및 커스텀 설정 (opencode.js
 | `aggressive_truncation`           | `false` | 토큰 제한을 초과하면 도구 출력을 공격적으로 잘라내어 제한 내에 맞춥니다. 기본 truncation보다 더 공격적입니다. 부족하면 요약/복구로 fallback합니다.                      |
 | `auto_resume`                     | `false` | thinking block 에러나 thinking disabled violation으로부터 성공적으로 복구한 후 자동으로 세션을 재개합니다. 마지막 사용자 메시지를 추출하여 계속합니다.                |
 | `dcp_for_compaction`              | `false` | 컴팩션용 DCP(동적 컨텍스트 정리) 활성화 - 토큰 제한 초과 시 먼저 실행됩니다. 컴팩션 전에 중복 도구 호출과 오래된 도구 출력을 정리합니다.                                  |
+| `allow_background_agent_subagents` | `false` | 백그라운드 에이전트가 `call_omo_agent`를 통해 재귀적으로 하위 에이전트를 생성할 수 있도록 허용합니다. **경고:** 기하급수적인 태스크 폭증(800+ 태스크)을 유발할 수 있습니다. 대규모 병렬 에이전트 오케스트레이션이 필요한 경우에만 활성화하세요. |
 
 **경고**: 이 기능들은 실험적이며 예상치 못한 동작을 유발할 수 있습니다. 의미를 이해한 경우에만 활성화하세요.
 

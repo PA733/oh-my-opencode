@@ -1516,6 +1516,9 @@
         },
         "dcp_for_compaction": {
           "type": "boolean"
+        },
+        "allow_background_agent_subagents": {
+          "type": "boolean"
         }
       }
     },

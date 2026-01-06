@@ -174,7 +174,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createEditErrorRecoveryHook(ctx)
     : null;
 
-  const backgroundManager = new BackgroundManager(ctx);
+  const backgroundManager = new BackgroundManager(ctx, pluginConfig.experimental);
 
   const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
     ? createTodoContinuationEnforcer(ctx, { backgroundManager })

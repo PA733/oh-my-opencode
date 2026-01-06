@@ -183,6 +183,8 @@ export const ExperimentalConfigSchema = z.object({
   dynamic_context_pruning: DynamicContextPruningConfigSchema.optional(),
   /** Enable DCP (Dynamic Context Pruning) for compaction - runs first when token limit exceeded (default: false) */
   dcp_for_compaction: z.boolean().optional(),
+  /** Allow background agents to spawn recursive subagents via call_omo_agent (default: false). WARNING: May cause exponential task cascades. */
+  allow_background_agent_subagents: z.boolean().optional(),
 })
 
 export const SkillSourceSchema = z.union([

@@ -974,7 +974,8 @@ Oh My OpenCode 送你重构工具（重命名、代码操作）。
     "preemptive_compaction_threshold": 0.85,
     "truncate_all_tool_outputs": true,
     "aggressive_truncation": true,
-    "auto_resume": true
+    "auto_resume": true,
+    "allow_background_agent_subagents": false
   }
 }
 ```
@@ -986,6 +987,7 @@ Oh My OpenCode 送你重构工具（重命名、代码操作）。
 | `aggressive_truncation`           | `false` | 超出 token 限制时，激进地截断工具输出以适应限制。比默认截断更激进。不够的话会回退到摘要/恢复。                                                     |
 | `auto_resume`                     | `false` | 从 thinking block 错误或 thinking disabled violation 成功恢复后，自动恢复会话。提取最后一条用户消息继续执行。                                     |
 | `dcp_for_compaction`              | `false` | 启用压缩用 DCP（动态上下文剪枝）- 在超出 token 限制时首先执行。在压缩前清理重复的工具调用和旧的工具输出。                                            |
+| `allow_background_agent_subagents` | `false` | 允许后台代理通过 `call_omo_agent` 递归生成子代理。**警告：** 可能导致指数级任务爆发（800+ 任务）。仅在需要大规模并行代理编排时启用。 |
 
 **警告**：这些功能是实验性的，可能会导致意外行为。只有在理解其影响的情况下才启用。
 

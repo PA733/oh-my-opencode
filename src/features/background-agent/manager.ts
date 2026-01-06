@@ -5,6 +5,7 @@ import type {
   BackgroundTask,
   LaunchInput,
 } from "./types"
+import type { ExperimentalConfig } from "../../config"
 import { log } from "../../shared/logger"
 import {
   findNearestMessageWithFields,
@@ -60,12 +61,14 @@ export class BackgroundManager {
   private client: OpencodeClient
   private directory: string
   private pollingInterval?: ReturnType<typeof setInterval>
+  private experimental?: ExperimentalConfig
 
-  constructor(ctx: PluginInput) {
+  constructor(ctx: PluginInput, experimental?: ExperimentalConfig) {
     this.tasks = new Map()
     this.notifications = new Map()
     this.client = ctx.client
     this.directory = ctx.directory
+    this.experimental = experimental
   }
 
   async launch(input: LaunchInput): Promise<BackgroundTask> {
@@ -107,20 +110,25 @@ export class BackgroundManager {
     this.tasks.set(task.id, task)
     this.startPolling()
 
-    log("[background-agent] Launching task:", { taskId: task.id, sessionID, agent: input.agent })
+  log("[background-agent] Launching task:", { taskId: task.id, sessionID, agent: input.agent })
 
-    this.client.session.promptAsync({
-      path: { id: sessionID },
-      body: {
-        agent: input.agent,
-        tools: {
-          task: false,
-          background_task: false,
-          call_omo_agent: false,
-        },
-        parts: [{ type: "text", text: input.prompt }],
-      },
-    }).catch((error) => {
+  const allowSubagents = this.experimental?.allow_background_agent_subagents ?? false
+  const toolRestrictions: Record<string, boolean> = {
+    task: false,
+    background_task: false,
+  }
+  if (!allowSubagents) {
+    toolRestrictions.call_omo_agent = false
+  }
+
+  this.client.session.promptAsync({
+    path: { id: sessionID },
+    body: {
+      agent: input.agent,
+      tools: toolRestrictions,
+      parts: [{ type: "text", text: input.prompt }],
+    },
+  }).catch((error) => {
       log("[background-agent] promptAsync error:", error)
       const existingTask = this.findBySession(sessionID)
       if (existingTask) {
