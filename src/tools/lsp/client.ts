@@ -3,6 +3,19 @@ import { readFileSync } from "fs"
 import { extname, resolve } from "path"
 import { getLanguageId } from "./config"
 import type { Diagnostic, ResolvedServer } from "./types"
+import { LSPServerUnavailableError, LSPServerExitedError, isSpawnError } from "./errors"
+
+/**
+ * Server availability status for tracking failed servers
+ */
+type ServerStatus = "available" | "unavailable" | "failed"
+
+interface ServerState {
+  status: ServerStatus
+  failedAt?: number
+  error?: string
+  retryCount: number
+}
 
 interface ManagedClient {
   client: LSPClient
@@ -17,6 +30,13 @@ class LSPServerManager {
   private clients = new Map<string, ManagedClient>()
   private cleanupInterval: ReturnType<typeof setInterval> | null = null
   private readonly IDLE_TIMEOUT = 5 * 60 * 1000
+
+  /**
+   * Track server availability to avoid repeatedly trying to spawn failed servers
+   */
+  private serverStates = new Map<string, ServerState>()
+  private readonly FAILURE_COOLDOWN = 5 * 60 * 1000 // 5 minutes before retry
+  private readonly MAX_RETRIES = 3
 
   private constructor() {
     this.startCleanupTimer()
@@ -89,8 +109,67 @@ class LSPServerManager {
     }
   }
 
+  /**
+   * Check if a server is currently unavailable (failed recently)
+   */
+  private isServerUnavailable(key: string): boolean {
+    const state = this.serverStates.get(key)
+    if (!state) return false
+    if (state.status !== "unavailable") return false
+
+    // Check if cooldown has passed
+    if (state.failedAt && Date.now() - state.failedAt > this.FAILURE_COOLDOWN) {
+      // Cooldown passed, allow retry if under max retries
+      if (state.retryCount < this.MAX_RETRIES) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Mark a server as unavailable after a failure
+   */
+  private markServerUnavailable(key: string, error: string): void {
+    const existing = this.serverStates.get(key)
+    this.serverStates.set(key, {
+      status: "unavailable",
+      failedAt: Date.now(),
+      error,
+      retryCount: (existing?.retryCount ?? 0) + 1,
+    })
+  }
+
+  /**
+   * Mark a server as available after successful start
+   */
+  private markServerAvailable(key: string): void {
+    this.serverStates.set(key, {
+      status: "available",
+      retryCount: 0,
+    })
+  }
+
+  /**
+   * Get server state info (for diagnostics)
+   */
+  getServerState(root: string, serverId: string): ServerState | undefined {
+    return this.serverStates.get(this.getKey(root, serverId))
+  }
+
   async getClient(root: string, server: ResolvedServer): Promise<LSPClient> {
     const key = this.getKey(root, server.id)
+
+    // Check if server is known to be unavailable
+    if (this.isServerUnavailable(key)) {
+      const state = this.serverStates.get(key)!
+      throw new LSPServerUnavailableError(
+        server.id,
+        server.command,
+        new Error(state.error || "Server previously failed to start")
+      )
+    }
 
     let managed = this.clients.get(key)
     if (managed) {
@@ -120,7 +199,28 @@ class LSPServerManager {
       isInitializing: true,
     })
 
-    await initPromise
+    try {
+      await initPromise
+      this.markServerAvailable(key)
+    } catch (error) {
+      // Handle initialization failure
+      this.clients.delete(key)
+
+      if (error instanceof LSPServerUnavailableError || error instanceof LSPServerExitedError) {
+        this.markServerUnavailable(key, error.message)
+        throw error
+      }
+
+      // Wrap unexpected errors
+      const wrappedError = new LSPServerUnavailableError(
+        server.id,
+        server.command,
+        error instanceof Error ? error : new Error(String(error))
+      )
+      this.markServerUnavailable(key, wrappedError.message)
+      throw wrappedError
+    }
+
     const m = this.clients.get(key)
     if (m) {
       m.initPromise = undefined
@@ -132,6 +232,12 @@ class LSPServerManager {
 
   warmupClient(root: string, server: ResolvedServer): void {
     const key = this.getKey(root, server.id)
+
+    // Skip if server is known to be unavailable
+    if (this.isServerUnavailable(key)) {
+      return
+    }
+
     if (this.clients.has(key)) return
 
     const client = new LSPClient(root, server)
@@ -148,13 +254,23 @@ class LSPServerManager {
       isInitializing: true,
     })
 
-    initPromise.then(() => {
-      const m = this.clients.get(key)
-      if (m) {
-        m.initPromise = undefined
-        m.isInitializing = false
-      }
-    })
+    initPromise
+      .then(() => {
+        const m = this.clients.get(key)
+        if (m) {
+          m.initPromise = undefined
+          m.isInitializing = false
+        }
+        this.markServerAvailable(key)
+      })
+      .catch((error) => {
+        // Warmup failed - mark as unavailable but don't throw
+        this.clients.delete(key)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        this.markServerUnavailable(key, errorMessage)
+        // Log warning but don't crash - warmup is best-effort
+        console.warn(`[lsp] Warmup failed for ${server.id}: ${errorMessage}`)
+      })
   }
 
   releaseClient(root: string, serverId: string): void {
@@ -182,6 +298,27 @@ class LSPServerManager {
       this.cleanupInterval = null
     }
   }
+
+  /**
+   * Reset a server's failure state (e.g., after user installs the missing binary)
+   */
+  resetServerState(root: string, serverId: string): void {
+    const key = this.getKey(root, serverId)
+    this.serverStates.delete(key)
+  }
+
+  /**
+   * Get list of unavailable servers (for diagnostics)
+   */
+  getUnavailableServers(): Array<{ key: string; state: ServerState }> {
+    const result: Array<{ key: string; state: ServerState }> = []
+    for (const [key, state] of this.serverStates) {
+      if (state.status === "unavailable") {
+        result.push({ key, state })
+      }
+    }
+    return result
+  }
 }
 
 export const lspManager = LSPServerManager.getInstance()
@@ -195,6 +332,7 @@ export class LSPClient {
   private stderrBuffer: string[] = []
   private processExited = false
   private diagnosticsStore = new Map<string, Diagnostic[]>()
+  private stdinWritable = true
 
   constructor(
     private root: string,
@@ -202,20 +340,46 @@ export class LSPClient {
   ) {}
 
   async start(): Promise<void> {
-    this.proc = spawn(this.server.command, {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe",
-      cwd: this.root,
-      env: {
-        ...process.env,
-        ...this.server.env,
-      },
-    })
+    try {
+      this.proc = spawn(this.server.command, {
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+        cwd: this.root,
+        env: {
+          ...process.env,
+          ...this.server.env,
+        },
+      })
+    } catch (error) {
+      // Catch spawn errors (ENOENT, EACCES, etc.) and wrap them
+      if (isSpawnError(error)) {
+        throw new LSPServerUnavailableError(this.server.id, this.server.command, error)
+      }
+      throw error
+    }
 
     if (!this.proc) {
-      throw new Error(`Failed to spawn LSP server: ${this.server.command.join(" ")}`)
+      throw new LSPServerUnavailableError(
+        this.server.id,
+        this.server.command,
+        new Error("spawn returned null")
+      )
     }
+
+    // Note: Bun's FileSink doesn't support .on() events like Node streams
+    // We handle stdin errors in safeWrite() via try-catch instead
+
+    // Track process exit
+    this.proc.exited
+      .then((code) => {
+        this.processExited = true
+        this.stdinWritable = false
+      })
+      .catch(() => {
+        this.processExited = true
+        this.stdinWritable = false
+      })
 
     this.startReading()
     this.startStderrReading()
@@ -224,9 +388,7 @@ export class LSPClient {
 
     if (this.proc.exitCode !== null) {
       const stderr = this.stderrBuffer.join("\n")
-      throw new Error(
-        `LSP server exited immediately with code ${this.proc.exitCode}` + (stderr ? `\nstderr: ${stderr}` : "")
-      )
+      throw new LSPServerExitedError(this.server.id, this.proc.exitCode, stderr)
     }
   }
 
@@ -240,6 +402,7 @@ export class LSPClient {
           const { done, value } = await reader.read()
           if (done) {
             this.processExited = true
+            this.stdinWritable = false
             this.rejectAllPending("LSP server stdout closed")
             break
           }
@@ -251,6 +414,7 @@ export class LSPClient {
         }
       } catch (err) {
         this.processExited = true
+        this.stdinWritable = false
         this.rejectAllPending(`LSP stdout read error: ${err}`)
       }
     }
@@ -350,10 +514,28 @@ export class LSPClient {
     }
   }
 
+  /**
+   * Safely write to stdin with guards against destroyed streams
+   */
+  private safeWrite(data: string): boolean {
+    if (!this.proc || !this.stdinWritable || this.processExited || this.proc.exitCode !== null) {
+      return false
+    }
+
+    try {
+      this.proc.stdin.write(data)
+      return true
+    } catch (error) {
+      // Stream likely destroyed - mark as unwritable
+      this.stdinWritable = false
+      return false
+    }
+  }
+
   private send(method: string, params?: unknown): Promise<unknown> {
     if (!this.proc) throw new Error("LSP client not started")
 
-    if (this.processExited || this.proc.exitCode !== null) {
+    if (this.processExited || this.proc.exitCode !== null || !this.stdinWritable) {
       const stderr = this.stderrBuffer.slice(-10).join("\n")
       throw new Error(`LSP server already exited (code: ${this.proc.exitCode})` + (stderr ? `\nstderr: ${stderr}` : ""))
     }
@@ -361,7 +543,10 @@ export class LSPClient {
     const id = ++this.requestIdCounter
     const msg = JSON.stringify({ jsonrpc: "2.0", id, method, params })
     const header = `Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n`
-    this.proc.stdin.write(header + msg)
+    
+    if (!this.safeWrite(header + msg)) {
+      throw new Error("LSP server stdin is no longer writable")
+    }
 
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
@@ -377,18 +562,18 @@ export class LSPClient {
 
   private notify(method: string, params?: unknown): void {
     if (!this.proc) return
-    if (this.processExited || this.proc.exitCode !== null) return
+    if (this.processExited || this.proc.exitCode !== null || !this.stdinWritable) return
 
     const msg = JSON.stringify({ jsonrpc: "2.0", method, params })
-    this.proc.stdin.write(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`)
+    this.safeWrite(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`)
   }
 
   private respond(id: number | string, result: unknown): void {
     if (!this.proc) return
-    if (this.processExited || this.proc.exitCode !== null) return
+    if (this.processExited || this.proc.exitCode !== null || !this.stdinWritable) return
 
     const msg = JSON.stringify({ jsonrpc: "2.0", id, result })
-    this.proc.stdin.write(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`)
+    this.safeWrite(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`)
   }
 
   private handleServerRequest(id: number | string, method: string, params?: unknown): void {
@@ -594,7 +779,7 @@ export class LSPClient {
   }
 
   isAlive(): boolean {
-    return this.proc !== null && !this.processExited && this.proc.exitCode === null
+    return this.proc !== null && !this.processExited && this.proc.exitCode === null && this.stdinWritable
   }
 
   async stop(): Promise<void> {
@@ -603,6 +788,7 @@ export class LSPClient {
       this.notify("exit")
     } catch {
     }
+    this.stdinWritable = false
     this.proc?.kill()
     this.proc = null
     this.processExited = true
