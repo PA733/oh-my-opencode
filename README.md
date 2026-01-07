@@ -806,6 +806,47 @@ When both `oh-my-opencode.jsonc` and `oh-my-opencode.json` files exist, `.jsonc`
 }
 ```
 
+### Plugin Compatibility
+
+Oh My OpenCode automatically detects and adapts when other OpenCode plugins are installed that provide similar functionality.
+
+**Auto-Detection**: When starting, oh-my-opencode scans your `opencode.json` for conflicting plugins:
+
+- **DCP plugins** (`opencode-dcp`, `@opencode/dcp`) - Dynamic Context Pruning
+- **ELF plugins** (`opencode-elf`, `@opencode/elf`) - Context management
+- **Compaction plugins** (`opencode-compaction`, `@opencode/compaction`) - Session compaction
+
+**Auto-Disable**: If conflicts are detected, oh-my-opencode automatically disables its own hooks that would interfere:
+
+```
+⚠️  oh-my-opencode: Plugin Conflict Detection
+════════════════════════════════════════════════════════════
+Detected 2 plugin(s) that may conflict with oh-my-opencode:
+  • opencode-dcp
+  • opencode-elf
+
+Auto-disabling 5 oh-my-opencode hook(s) to prevent conflicts:
+  • anthropic-context-window-limit-recovery
+  • preemptive-compaction
+  • compaction-context-injector
+  • context-window-monitor
+  • directory-agents-injector
+════════════════════════════════════════════════════════════
+```
+
+**Manual Control**: Override auto-detection by explicitly configuring `disabled_hooks`:
+
+```json
+{
+  "disabled_hooks": [
+    "preemptive-compaction",
+    "anthropic-context-window-limit-recovery"
+  ]
+}
+```
+
+This ensures smooth coexistence with your existing plugin ecosystem without requiring manual configuration.
+
 ### Google Auth
 
 **Recommended**: Use the external [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth) plugin. It provides multi-account load balancing, more models (including Claude via Antigravity), and active maintenance. See [Installation > Google Gemini](#google-gemini-antigravity-oauth).

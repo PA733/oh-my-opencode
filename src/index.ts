@@ -62,17 +62,25 @@ import {
 import { BackgroundManager } from "./features/background-agent";
 import { SkillMcpManager } from "./features/skill-mcp-manager";
 import { type HookName } from "./config";
-import { log } from "./shared";
+import { log, detectConflictingPlugins, warnAboutConflicts } from "./shared";
 import { loadPluginConfig } from "./plugin-config";
 import { createModelCacheState, getModelLimit } from "./plugin-state";
 import { createConfigHandler } from "./plugin-handlers";
 
 const OhMyOpenCodePlugin: Plugin = async (ctx) => {
-  // Start background tmux check immediately
   startTmuxCheck();
 
   const pluginConfig = loadPluginConfig(ctx.directory, ctx);
-  const disabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
+  
+  const conflictDetection = detectConflictingPlugins(ctx.directory);
+  const autoDisabledHooks = new Set(conflictDetection.hooksToDisable);
+  const userDisabledHooks = new Set(pluginConfig.disabled_hooks ?? []);
+  const disabledHooks = new Set([...autoDisabledHooks, ...userDisabledHooks]);
+  
+  if (conflictDetection.hasConflicts) {
+    warnAboutConflicts(conflictDetection.conflicts, conflictDetection.hooksToDisable);
+  }
+  
   const isHookEnabled = (hookName: HookName) => !disabledHooks.has(hookName);
 
   const modelCacheState = createModelCacheState();
