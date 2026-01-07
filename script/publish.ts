@@ -159,17 +159,36 @@ async function checkVersionExists(version: string): Promise<boolean> {
   }
 }
 
+async function getCurrentPackageVersion(): Promise<string> {
+  const pkgPath = new URL("../package.json", import.meta.url).pathname
+  const pkg = await Bun.file(pkgPath).json()
+  return pkg.version as string
+}
+
 async function main() {
   const previous = await fetchPreviousVersion()
-  const newVersion = versionOverride || (bump ? bumpVersion(previous, bump) : bumpVersion(previous, "patch"))
-  console.log(`New version: ${newVersion}\n`)
+  const currentVersion = await getCurrentPackageVersion()
+  const expectedVersion = versionOverride || (bump ? bumpVersion(previous, bump) : bumpVersion(previous, "patch"))
+  
+  // Check if version was already bumped (e.g., by bump-version.ts in workflow)
+  const newVersion = currentVersion !== previous ? currentVersion : expectedVersion
+  console.log(`Current package.json version: ${currentVersion}`)
+  console.log(`Expected version: ${expectedVersion}`)
+  console.log(`Publishing version: ${newVersion}\n`)
 
   if (await checkVersionExists(newVersion)) {
     console.log(`Version ${newVersion} already exists on npm. Skipping publish.`)
     process.exit(0)
   }
 
-  await updatePackageVersion(newVersion)
+  // Only update package.json if not already updated
+  if (currentVersion === previous) {
+    console.log("Version not yet bumped, updating package.json...")
+    await updatePackageVersion(newVersion)
+  } else {
+    console.log("Version already bumped, skipping package.json update")
+  }
+
   const changelog = await generateChangelog(previous)
   const contributors = await getContributors(previous)
   const notes = [...changelog, ...contributors]
