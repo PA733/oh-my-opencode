@@ -177,11 +177,8 @@ class LSPServerManager {
         try {
           await managed.initPromise
         } catch (error) {
-          // Concurrent init failed - remove stale entry and mark unavailable
+          // Concurrent waiter: Remove stale entry only. Original caller handles markServerUnavailable to prevent double retry count.
           this.clients.delete(key)
-          if (error instanceof LSPServerUnavailableError || error instanceof LSPServerExitedError) {
-            this.markServerUnavailable(key, error.message)
-          }
           throw error
         }
       }
@@ -389,7 +386,8 @@ export class LSPClient {
       .catch((err) => {
         this.processExited = true
         this.stdinWritable = false
-        this.rejectAllPending(`LSP server process error: ${err}`)
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        this.rejectAllPending(`LSP server process error: ${errorMessage}`)
       })
 
     this.startReading()
