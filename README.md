@@ -515,6 +515,35 @@ Ask @explore for the policy on this feature
 
 Customize agent models, prompts, and permissions in `oh-my-opencode.json`. See [Configuration](#configuration).
 
+#### Provider Resilience: Make Sisyphus Bulletproof
+
+When a provider goes down (like Claude authentication failures), agents that depend on it become unavailable. The solution? **Multi-provider diversity**.
+
+**Quick Fix**: Configure multiple providers for automatic fallback:
+
+```bash
+# Best: All three providers
+bunx oh-my-opencode install --claude=yes --chatgpt=yes --gemini=yes
+
+# Good: Any two providers
+bunx oh-my-opencode install --claude=yes --gemini=yes
+
+# Minimum: Free models
+bunx oh-my-opencode install --claude=no --chatgpt=no --gemini=no
+```
+
+**Why this matters**: When Claude broke (issue #609), users with multi-provider setups continued working. Single-provider users were stuck.
+
+**The new installer is smarter** - it automatically configures resilient fallbacks:
+- Sisyphus uses best available model (Claude → GPT → Gemini → Free)
+- Librarian prefers fast/cheap options (Gemini Flash → Claude Sonnet → Free)
+- Oracle uses GPT-5.2 for reasoning, falls back to Claude/Gemini
+- Explore always uses cheapest option (high volume agent)
+
+**Doctor check included**: Run `bunx oh-my-opencode doctor` to verify your provider setup and get warnings if you have a single point of failure.
+
+**Emergency fix guide**: See [docs/resilience-guide.md](docs/resilience-guide.md) for detailed instructions on switching providers when your primary goes down.
+
 ### Background Agents: Work Like a Team
 
 What if you could run these agents relentlessly, never letting them idle?

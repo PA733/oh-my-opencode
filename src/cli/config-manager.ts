@@ -273,12 +273,32 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
 
   const agents: Record<string, Record<string, unknown>> = {}
 
+  // Sisyphus: Use best available model, fallback chain:
+  // 1. Claude Opus (if available)
+  // 2. GPT-5.2 (if ChatGPT configured)
+  // 3. Gemini 3 Pro (if Gemini configured)
+  // 4. Free model (last resort)
   if (!installConfig.hasClaude) {
-    agents["Sisyphus"] = { model: "opencode/glm-4.7-free" }
+    if (installConfig.hasChatGPT) {
+      agents["Sisyphus"] = { model: "openai/gpt-5.2" }
+    } else if (installConfig.hasGemini) {
+      agents["Sisyphus"] = { model: "google/antigravity-gemini-3-pro-high" }
+    } else {
+      agents["Sisyphus"] = { model: "opencode/glm-4.7-free" }
+    }
   }
 
-  agents["librarian"] = { model: "opencode/glm-4.7-free" }
+  // Librarian: Prefer Claude Sonnet, fallback to cheaper options
+  // Use fast/cheap models for exploration, save expensive models for complex work
+  if (installConfig.hasGemini) {
+    agents["librarian"] = { model: "google/antigravity-gemini-3-flash" }
+  } else if (installConfig.hasClaude) {
+    agents["librarian"] = { model: "anthropic/claude-sonnet-4-5" }
+  } else {
+    agents["librarian"] = { model: "opencode/glm-4.7-free" }
+  }
 
+  // Explore: Use fastest/cheapest option (high volume agent)
   // Gemini models use `antigravity-` prefix for explicit Antigravity quota routing
   // @see ANTIGRAVITY_PROVIDER_CONFIG comments for rationale
   if (installConfig.hasGemini) {
@@ -289,12 +309,18 @@ export function generateOmoConfig(installConfig: InstallConfig): Record<string, 
     agents["explore"] = { model: "opencode/glm-4.7-free" }
   }
 
+  // Oracle: Prefer GPT-5.2 for reasoning, fallback to Claude/Gemini
   if (!installConfig.hasChatGPT) {
-    agents["oracle"] = {
-      model: installConfig.hasClaude ? "anthropic/claude-opus-4-5" : "opencode/glm-4.7-free",
+    if (installConfig.hasClaude) {
+      agents["oracle"] = { model: "anthropic/claude-opus-4-5" }
+    } else if (installConfig.hasGemini) {
+      agents["oracle"] = { model: "google/antigravity-gemini-3-pro-high" }
+    } else {
+      agents["oracle"] = { model: "opencode/glm-4.7-free" }
     }
   }
 
+  // Frontend/Document agents: Prefer Gemini (best at creative/UI work)
   if (installConfig.hasGemini) {
     agents["frontend-ui-ux-engineer"] = { model: "google/antigravity-gemini-3-pro-high" }
     agents["document-writer"] = { model: "google/antigravity-gemini-3-flash" }

@@ -8,6 +8,7 @@ import { getGhCliCheckDefinition } from "./gh"
 import { getLspCheckDefinition } from "./lsp"
 import { getMcpCheckDefinitions } from "./mcp"
 import { getVersionCheckDefinition } from "./version"
+import { getProviderResilienceCheckDefinition } from "./provider-resilience"
 
 export * from "./opencode"
 export * from "./plugin"
@@ -18,6 +19,7 @@ export * from "./gh"
 export * from "./lsp"
 export * from "./mcp"
 export * from "./version"
+export * from "./provider-resilience"
 
 export function getAllCheckDefinitions(): CheckDefinition[] {
   return [
@@ -25,6 +27,7 @@ export function getAllCheckDefinitions(): CheckDefinition[] {
     getPluginCheckDefinition(),
     getConfigCheckDefinition(),
     ...getAuthCheckDefinitions(),
+    getProviderResilienceCheckDefinition(),
     ...getDependencyCheckDefinitions(),
     getGhCliCheckDefinition(),
     getLspCheckDefinition(),
