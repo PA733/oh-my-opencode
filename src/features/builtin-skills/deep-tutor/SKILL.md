@@ -194,4 +194,15 @@ read src/components/Settings.tsx
 
 ---
 
-*Inspired by DeepTutor structural patterns. Co-authored by @gtg7784.*
+## References
+
+**Inspired by**: [DeepTutor](https://github.com/HKUDS/DeepTutor) - AI-powered personalized learning assistant with sophisticated multi-agent architecture
+
+**Key Patterns Adapted**:
+1. **Phase-Based Tool Selection** ([research_agent.py#L113-L189](https://github.com/HKUDS/DeepTutor/blob/dfd82548611aed0e613b39c8f72ae3106b3a747c/src/agents/research/agents/research_agent.py#L113-L189))
+2. **Sufficiency Check Gate** ([research_agent.py#L318-L371](https://github.com/HKUDS/DeepTutor/blob/dfd82548611aed0e613b39c8f72ae3106b3a747c/src/agents/research/agents/research_agent.py#L318-L371))
+3. **Iteration Limits** ([research_agent.py#L38-L42](https://github.com/HKUDS/DeepTutor/blob/dfd82548611aed0e613b39c8f72ae3106b3a747c/src/agents/research/agents/research_agent.py#L38-L42))
+4. **Request Classification** (Multi-agent architecture with specialized roles)
+5. **Dynamic Task Queue** ([manager_agent.py](https://github.com/HKUDS/DeepTutor/blob/dfd82548611aed0e613b39c8f72ae3106b3a747c/src/agents/research/agents/manager_agent.py))
+
+**Co-authored by**: @gtg7784 (Taegeon Go)
