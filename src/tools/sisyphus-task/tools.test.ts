@@ -1,35 +1,7 @@
 import { describe, test, expect } from "bun:test"
 import { DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS, CATEGORY_DESCRIPTIONS, SISYPHUS_TASK_DESCRIPTION } from "./constants"
-import type { CategoryConfig } from "../../config/schema"
+import { resolveCategoryConfig } from "./tools"
 
-function resolveCategoryConfig(
-  categoryName: string,
-  userCategories?: Record<string, CategoryConfig>,
-  parentModelString?: string
-): { config: CategoryConfig; promptAppend: string } | null {
-  const defaultConfig = DEFAULT_CATEGORIES[categoryName]
-  const userConfig = userCategories?.[categoryName]
-  const defaultPromptAppend = CATEGORY_PROMPT_APPENDS[categoryName] ?? ""
-
-  if (!defaultConfig && !userConfig) {
-    return null
-  }
-
-  const config: CategoryConfig = {
-    ...defaultConfig,
-    ...userConfig,
-    model: userConfig?.model ?? parentModelString ?? defaultConfig?.model ?? "anthropic/claude-sonnet-4-5",
-  }
-
-  let promptAppend = defaultPromptAppend
-  if (userConfig?.prompt_append) {
-    promptAppend = defaultPromptAppend
-      ? defaultPromptAppend + "\n\n" + userConfig.prompt_append
-      : userConfig.prompt_append
-  }
-
-  return { config, promptAppend }
-}
 
 describe("sisyphus-task", () => {
   describe("DEFAULT_CATEGORIES", () => {
@@ -323,7 +295,7 @@ describe("sisyphus-task", () => {
     test("skills parameter is required - returns error when not provided", async () => {
       // #given
       const { createSisyphusTask } = require("./tools")
-      
+
       const mockManager = { launch: async () => ({}) }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
@@ -333,19 +305,19 @@ describe("sisyphus-task", () => {
           messages: async () => ({ data: [] }),
         },
       }
-      
+
       const tool = createSisyphusTask({
         manager: mockManager,
         client: mockClient,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when - skills not provided (undefined)
       const result = await tool.execute(
         {
@@ -356,7 +328,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should return error about missing skills
       expect(result).toContain("skills")
       expect(result).toContain("REQUIRED")
@@ -364,134 +336,134 @@ describe("sisyphus-task", () => {
   })
 
   describe("resume with background parameter", () => {
-  test("resume with background=false should wait for result and return content", async () => {
-    // Note: This test needs extended timeout because the implementation has MIN_STABILITY_TIME_MS = 5000
-    // #given
-    const { createSisyphusTask } = require("./tools")
-    
-    const mockTask = {
-      id: "task-123",
-      sessionID: "ses_resume_test",
-      description: "Resumed task",
-      agent: "explore",
-      status: "running",
-    }
-    
-    const mockManager = {
-      resume: async () => mockTask,
-      launch: async () => mockTask,
-    }
-    
-    const mockClient = {
-      session: {
-        prompt: async () => ({ data: {} }),
-        messages: async () => ({
-          data: [
-            {
-              info: { role: "assistant", time: { created: Date.now() } },
-              parts: [{ type: "text", text: "This is the resumed task result" }],
-            },
-          ],
-        }),
-      },
-      app: {
-        agents: async () => ({ data: [] }),
-      },
-    }
-    
-    const tool = createSisyphusTask({
-      manager: mockManager,
-      client: mockClient,
-    })
-    
-    const toolContext = {
-      sessionID: "parent-session",
-      messageID: "parent-message",
-      agent: "Sisyphus",
-      abort: new AbortController().signal,
-    }
-    
-    // #when
-    const result = await tool.execute(
-      {
-        description: "Resume test",
-        prompt: "Continue the task",
-        resume: "ses_resume_test",
-        run_in_background: false,
-        skills: [],
-      },
-      toolContext
-    )
-    
-    // #then - should contain actual result, not just "Background task resumed"
-    expect(result).toContain("This is the resumed task result")
-    expect(result).not.toContain("Background task resumed")
-  }, { timeout: 10000 })
+    test("resume with background=false should wait for result and return content", async () => {
+      // Note: This test needs extended timeout because the implementation has MIN_STABILITY_TIME_MS = 5000
+      // #given
+      const { createSisyphusTask } = require("./tools")
 
-  test("resume with background=true should return immediately without waiting", async () => {
-    // #given
-    const { createSisyphusTask } = require("./tools")
-    
-    const mockTask = {
-      id: "task-456",
-      sessionID: "ses_bg_resume",
-      description: "Background resumed task",
-      agent: "explore",
-      status: "running",
-    }
-    
-    const mockManager = {
-      resume: async () => mockTask,
-    }
-    
-    const mockClient = {
-      session: {
-        prompt: async () => ({ data: {} }),
-        messages: async () => ({
-          data: [],
-        }),
-      },
-    }
-    
-    const tool = createSisyphusTask({
-      manager: mockManager,
-      client: mockClient,
+      const mockTask = {
+        id: "task-123",
+        sessionID: "ses_resume_test",
+        description: "Resumed task",
+        agent: "explore",
+        status: "running",
+      }
+
+      const mockManager = {
+        resume: async () => mockTask,
+        launch: async () => mockTask,
+      }
+
+      const mockClient = {
+        session: {
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({
+            data: [
+              {
+                info: { role: "assistant", time: { created: Date.now() } },
+                parts: [{ type: "text", text: "This is the resumed task result" }],
+              },
+            ],
+          }),
+        },
+        app: {
+          agents: async () => ({ data: [] }),
+        },
+      }
+
+      const tool = createSisyphusTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "Sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      const result = await tool.execute(
+        {
+          description: "Resume test",
+          prompt: "Continue the task",
+          resume: "ses_resume_test",
+          run_in_background: false,
+          skills: [],
+        },
+        toolContext
+      )
+
+      // #then - should contain actual result, not just "Background task resumed"
+      expect(result).toContain("This is the resumed task result")
+      expect(result).not.toContain("Background task resumed")
+    }, { timeout: 10000 })
+
+    test("resume with background=true should return immediately without waiting", async () => {
+      // #given
+      const { createSisyphusTask } = require("./tools")
+
+      const mockTask = {
+        id: "task-456",
+        sessionID: "ses_bg_resume",
+        description: "Background resumed task",
+        agent: "explore",
+        status: "running",
+      }
+
+      const mockManager = {
+        resume: async () => mockTask,
+      }
+
+      const mockClient = {
+        session: {
+          prompt: async () => ({ data: {} }),
+          messages: async () => ({
+            data: [],
+          }),
+        },
+      }
+
+      const tool = createSisyphusTask({
+        manager: mockManager,
+        client: mockClient,
+      })
+
+      const toolContext = {
+        sessionID: "parent-session",
+        messageID: "parent-message",
+        agent: "Sisyphus",
+        abort: new AbortController().signal,
+      }
+
+      // #when
+      const result = await tool.execute(
+        {
+          description: "Resume bg test",
+          prompt: "Continue in background",
+          resume: "ses_bg_resume",
+          run_in_background: true,
+          skills: [],
+        },
+        toolContext
+      )
+
+      // #then - should return background message
+      expect(result).toContain("Background task resumed")
+      expect(result).toContain("task-456")
     })
-    
-    const toolContext = {
-      sessionID: "parent-session",
-      messageID: "parent-message",
-      agent: "Sisyphus",
-      abort: new AbortController().signal,
-    }
-    
-    // #when
-    const result = await tool.execute(
-      {
-        description: "Resume bg test",
-        prompt: "Continue in background",
-        resume: "ses_bg_resume",
-        run_in_background: true,
-        skills: [],
-      },
-      toolContext
-    )
-    
-    // #then - should return background message
-    expect(result).toContain("Background task resumed")
-    expect(result).toContain("task-456")
   })
-})
 
   describe("sync mode new task (run_in_background=false)", () => {
     test("sync mode prompt error returns error message immediately", async () => {
       // #given
       const { createSisyphusTask } = require("./tools")
-      
+
       const mockManager = {
         launch: async () => ({}),
       }
-      
+
       const mockClient = {
         session: {
           get: async () => ({ data: { directory: "/project" } }),
@@ -506,19 +478,19 @@ describe("sisyphus-task", () => {
           agents: async () => ({ data: [{ name: "ultrabrain", mode: "subagent" }] }),
         },
       }
-      
+
       const tool = createSisyphusTask({
         manager: mockManager,
         client: mockClient,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when
       const result = await tool.execute(
         {
@@ -530,7 +502,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should return error message with the prompt error
       expect(result).toContain("❌")
       expect(result).toContain("Failed to send prompt")
@@ -540,11 +512,11 @@ describe("sisyphus-task", () => {
     test("sync mode success returns task result with content", async () => {
       // #given
       const { createSisyphusTask } = require("./tools")
-      
+
       const mockManager = {
         launch: async () => ({}),
       }
-      
+
       const mockClient = {
         session: {
           get: async () => ({ data: { directory: "/project" } }),
@@ -564,19 +536,19 @@ describe("sisyphus-task", () => {
           agents: async () => ({ data: [{ name: "ultrabrain", mode: "subagent" }] }),
         },
       }
-      
+
       const tool = createSisyphusTask({
         manager: mockManager,
         client: mockClient,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when
       const result = await tool.execute(
         {
@@ -588,7 +560,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should return the task result content
       expect(result).toContain("Sync task completed successfully")
       expect(result).toContain("Task completed")
@@ -597,11 +569,11 @@ describe("sisyphus-task", () => {
     test("sync mode agent not found returns helpful error", async () => {
       // #given
       const { createSisyphusTask } = require("./tools")
-      
+
       const mockManager = {
         launch: async () => ({}),
       }
-      
+
       const mockClient = {
         session: {
           get: async () => ({ data: { directory: "/project" } }),
@@ -616,19 +588,19 @@ describe("sisyphus-task", () => {
           agents: async () => ({ data: [{ name: "ultrabrain", mode: "subagent" }] }),
         },
       }
-      
+
       const tool = createSisyphusTask({
         manager: mockManager,
         client: mockClient,
       })
-      
+
       const toolContext = {
         sessionID: "parent-session",
         messageID: "parent-message",
         agent: "Sisyphus",
         abort: new AbortController().signal,
       }
-      
+
       // #when
       const result = await tool.execute(
         {
@@ -640,7 +612,7 @@ describe("sisyphus-task", () => {
         },
         toolContext
       )
-      
+
       // #then - should return agent not found error
       expect(result).toContain("❌")
       expect(result).toContain("not found")
@@ -754,80 +726,67 @@ describe("sisyphus-task", () => {
   })
 
   describe("modelInfo detection via resolveCategoryConfig", () => {
-    test("when parentModelString exists but default model wins - modelInfo should report default", () => {
+    test("when parentModelString exists but default model wins - modelSource should be default", () => {
       // #given - Bug scenario: parentModelString is passed but userModel is undefined,
       // and the resolution order is: userModel ?? parentModelString ?? defaultModel
       // If parentModelString matches the resolved model, it's "inherited"
       // If defaultModel matches, it's "default"
       const categoryName = "ultrabrain"
       const parentModelString = undefined
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, undefined, parentModelString)
-      
-      // #then - actualModel should be defaultModel, type should be "default"
+
+      // #then - actualModel should be defaultModel, modelSource should be "default"
       expect(resolved).not.toBeNull()
-      const actualModel = resolved!.config.model
-      const defaultModel = DEFAULT_CATEGORIES[categoryName]?.model
-      expect(actualModel).toBe(defaultModel)
-      expect(actualModel).toBe("openai/gpt-5.2")
+      expect(resolved!.modelSource).toBe("default")
+      expect(resolved!.config.model).toBe("openai/gpt-5.2")
     })
 
-    test("when parentModelString is used - modelInfo should report inherited", () => {
+    test("when parentModelString is used - modelSource should be inherited", () => {
       // #given
       const categoryName = "ultrabrain"
       const parentModelString = "cliproxy/claude-opus-4-5"
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, undefined, parentModelString)
-      
-      // #then - actualModel should be parentModelString, type should be "inherited"
+
+      // #then - actualModel should be parentModelString, modelSource should be "inherited"
       expect(resolved).not.toBeNull()
-      const actualModel = resolved!.config.model
-      expect(actualModel).toBe(parentModelString)
+      expect(resolved!.modelSource).toBe("inherited")
+      expect(resolved!.config.model).toBe(parentModelString)
     })
 
-    test("when user defines model - modelInfo should report user-defined regardless of parentModelString", () => {
+    test("when user defines model - modelSource should be user-defined regardless of parentModelString", () => {
       // #given
       const categoryName = "ultrabrain"
       const userCategories = { "ultrabrain": { model: "my-provider/custom-model" } }
       const parentModelString = "cliproxy/claude-opus-4-5"
-      
+
       // #when
       const resolved = resolveCategoryConfig(categoryName, userCategories, parentModelString)
-      
-      // #then - actualModel should be userModel, type should be "user-defined"
+
+      // #then - actualModel should be userModel, modelSource should be "user-defined"
       expect(resolved).not.toBeNull()
-      const actualModel = resolved!.config.model
-      const userDefinedModel = userCategories[categoryName]?.model
-      expect(actualModel).toBe(userDefinedModel)
-      expect(actualModel).toBe("my-provider/custom-model")
+      expect(resolved!.modelSource).toBe("user-defined")
+      expect(resolved!.config.model).toBe("my-provider/custom-model")
     })
 
-    test("detection logic: actualModel comparison correctly identifies source", () => {
+    test("detection logic: modelSource correctly identifies source", () => {
       // #given - This test verifies the fix for PR #770 bug
       // The bug was: checking `if (parentModelString)` instead of `if (actualModel === parentModelString)`
+      // Now modelSource is tracked during resolution - no post-hoc detection needed
       const categoryName = "ultrabrain"
       const parentModelString = "cliproxy/claude-opus-4-5"
       const userCategories = { "ultrabrain": { model: "user/model" } }
-      
+
       // #when - user model wins
       const resolved = resolveCategoryConfig(categoryName, userCategories, parentModelString)
-      const actualModel = resolved!.config.model
-      const userDefinedModel = userCategories[categoryName]?.model
-      const defaultModel = DEFAULT_CATEGORIES[categoryName]?.model
-      
-      // #then - detection should compare against actual resolved model
-      const detectedType = actualModel === userDefinedModel 
-        ? "user-defined" 
-        : actualModel === parentModelString 
-        ? "inherited" 
-        : actualModel === defaultModel 
-        ? "default" 
-        : undefined
-      
-      expect(detectedType).toBe("user-defined")
-      expect(actualModel).not.toBe(parentModelString)
+
+      // #then - modelSource is tracked during resolution, not detected post-hoc
+      expect(resolved!.modelSource).toBe("user-defined")
+      expect(resolved!.config.model).toBe("user/model")
+      expect(resolved!.config.model).not.toBe(parentModelString)
     })
   })
 })

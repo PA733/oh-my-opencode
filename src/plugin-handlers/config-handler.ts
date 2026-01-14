@@ -58,6 +58,9 @@ export function createConfigHandler(deps: ConfigHandlerDeps) {
     modelCacheState.anthropicContext1MEnabled =
       anthropicBeta?.includes("context-1m") ?? false;
 
+    // Cache global model for use by tools
+    modelCacheState.globalModel = typeof config.model === "string" ? config.model : undefined;
+
     if (providers) {
       for (const [providerID, providerConfig] of Object.entries(providers)) {
         const models = providerConfig?.models;

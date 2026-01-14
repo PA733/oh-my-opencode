@@ -59,11 +59,12 @@ type ToolContextWithMetadata = {
   metadata?: (input: { title?: string; metadata?: Record<string, unknown> }) => void
 }
 
-function resolveCategoryConfig(
+export function resolveCategoryConfig(
   categoryName: string,
   userCategories?: CategoriesConfig,
-  parentModelString?: string
-): { config: CategoryConfig; promptAppend: string } | null {
+  parentModelString?: string,
+  globalModel?: string
+): { config: CategoryConfig; promptAppend: string; modelSource: "user-defined" | "inherited" | "default" } | null {
   const defaultConfig = DEFAULT_CATEGORIES[categoryName]
   const userConfig = userCategories?.[categoryName]
   const defaultPromptAppend = CATEGORY_PROMPT_APPENDS[categoryName] ?? ""
@@ -72,12 +73,31 @@ function resolveCategoryConfig(
     return null
   }
 
-  // Model priority: user override > parent model (inherit) > category default > hardcoded fallback
-  // Parent model takes precedence over category default so custom providers work out-of-box
+  // Determine model and its source based on priority
+  let model: string | undefined
+  let modelSource: "user-defined" | "inherited" | "default"
+
+  if (userConfig?.model) {
+    model = userConfig.model
+    modelSource = "user-defined"
+  } else if (parentModelString) {
+    model = parentModelString
+    modelSource = "inherited"
+  } else if (defaultConfig?.model) {
+    model = defaultConfig.model
+    modelSource = "default"
+  } else if (globalModel) {
+    model = globalModel
+    modelSource = "inherited"  // global config is also "inherited" from parent context
+  } else {
+    model = undefined
+    modelSource = "default"
+  }
+
   const config: CategoryConfig = {
     ...defaultConfig,
     ...userConfig,
-    model: userConfig?.model ?? parentModelString ?? defaultConfig?.model ?? "anthropic/claude-sonnet-4-5",
+    model: model as string,
   }
 
   let promptAppend = defaultPromptAppend
@@ -87,7 +107,7 @@ function resolveCategoryConfig(
       : userConfig.prompt_append
   }
 
-  return { config, promptAppend }
+  return { config, promptAppend, modelSource }
 }
 
 export interface SisyphusTaskToolOptions {
@@ -96,6 +116,7 @@ export interface SisyphusTaskToolOptions {
   directory: string
   userCategories?: CategoriesConfig
   gitMasterConfig?: GitMasterConfig
+  getGlobalModel?: () => string | undefined
 }
 
 export interface BuildSystemContentInput {
@@ -118,7 +139,7 @@ export function buildSystemContent(input: BuildSystemContentInput): string | und
 }
 
 export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefinition {
-  const { manager, client, directory, userCategories, gitMasterConfig } = options
+  const { manager, client, directory, userCategories, gitMasterConfig, getGlobalModel } = options
 
   return tool({
     description: SISYPHUS_TASK_DESCRIPTION,
@@ -340,23 +361,15 @@ ${textContent || "(No text output)"}`
       let modelInfo: ModelFallbackInfo | undefined
 
       if (args.category) {
-        const resolved = resolveCategoryConfig(args.category, userCategories, parentModelString)
+        const globalModel = getGlobalModel?.()
+        const resolved = resolveCategoryConfig(args.category, userCategories, parentModelString, globalModel)
         if (!resolved) {
           return `❌ Unknown category: "${args.category}". Available: ${Object.keys({ ...DEFAULT_CATEGORIES, ...userCategories }).join(", ")}`
         }
 
-        // Determine model source by comparing against the actual resolved model
+        // Model source is now tracked during resolution - no post-hoc detection needed
         const actualModel = resolved.config.model
-        const userDefinedModel = userCategories?.[args.category]?.model
-        const defaultModel = DEFAULT_CATEGORIES[args.category]?.model
-
-        if (actualModel === userDefinedModel) {
-          modelInfo = { model: actualModel, type: "user-defined" }
-        } else if (actualModel === parentModelString) {
-          modelInfo = { model: actualModel, type: "inherited" }
-        } else if (actualModel === defaultModel) {
-          modelInfo = { model: actualModel, type: "default" }
-        }
+        modelInfo = actualModel ? { model: actualModel, type: resolved.modelSource } : undefined
 
         agentToUse = SISYPHUS_JUNIOR_AGENT
         const parsedModel = parseModelString(resolved.config.model)

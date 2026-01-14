@@ -243,6 +243,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     directory: ctx.directory,
     userCategories: pluginConfig.categories,
     gitMasterConfig: pluginConfig.git_master,
+    getGlobalModel: () => modelCacheState.globalModel,
   });
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
