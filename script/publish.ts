@@ -122,9 +122,9 @@ async function buildAndPublish(version: string): Promise<void> {
   const tagArgs = distTag ? ["--tag", distTag] : []
   
   if (process.env.CI) {
-    await $`npm publish --access public --provenance --ignore-scripts ${tagArgs}`
+    //await $`npm publish --access public --provenance --ignore-scripts ${tagArgs}`
   } else {
-    await $`npm publish --access public --ignore-scripts ${tagArgs}`
+    //await $`npm publish --access public --ignore-scripts ${tagArgs}`
   }
 }
 
